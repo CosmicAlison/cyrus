@@ -1,0 +1,201 @@
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-cyrus}
+      POSTGRES_USER: ${POSTGRES_USER:-cyrus}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cyrus}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cyrus}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-cyrus}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-cyrus}
+    ports:
+      - "5672:5672"
+      - "15672:15672"   # management UI
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7.2-alpine
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD:-cyrus}
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-cyrus}", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  surya_service:
+    build:
+      context: ./surya_service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-cyrus}:${RABBITMQ_PASSWORD:-cyrus}@rabbitmq:5672/
+      HF_HOME: /cache/huggingface
+    volumes:
+      - surya_weights:/cache/huggingface
+      - surya_output:/tmp/surya_output
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    # uncomment if GPU available:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+  api:
+    build:
+      context: ./cyrus
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-cyrus}:${POSTGRES_PASSWORD:-cyrus}@postgres:5432/${POSTGRES_DB:-cyrus}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-cyrus}:${RABBITMQ_PASSWORD:-cyrus}@rabbitmq:5672/
+      REDIS_URL: redis://:${REDIS_PASSWORD:-cyrus}@redis:6379/0
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
+      FLASK_ENV: ${FLASK_ENV:-production}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: flask run --host=0.0.0.0 --port=5000
+
+  worker_helio:
+    build:
+      context: ./cyrus
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-cyrus}:${POSTGRES_PASSWORD:-cyrus}@postgres:5432/${POSTGRES_DB:-cyrus}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-cyrus}:${RABBITMQ_PASSWORD:-cyrus}@rabbitmq:5672/
+      REDIS_URL: redis://:${REDIS_PASSWORD:-cyrus}@redis:6379/0
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: python -m cyrus.workers.helio_worker
+
+  worker_satops:
+    build:
+      context: ./cyrus
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-cyrus}:${POSTGRES_PASSWORD:-cyrus}@postgres:5432/${POSTGRES_DB:-cyrus}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-cyrus}:${RABBITMQ_PASSWORD:-cyrus}@rabbitmq:5672/
+      REDIS_URL: redis://:${REDIS_PASSWORD:-cyrus}@redis:6379/0
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: python -m cyrus.workers.satops_worker
+
+  worker_gridops:
+    build:
+      context: ./cyrus
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-cyrus}:${POSTGRES_PASSWORD:-cyrus}@postgres:5432/${POSTGRES_DB:-cyrus}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-cyrus}:${RABBITMQ_PASSWORD:-cyrus}@rabbitmq:5672/
+      REDIS_URL: redis://:${REDIS_PASSWORD:-cyrus}@redis:6379/0
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: python -m cyrus.workers.gridops_worker
+
+  worker_commsops:
+    build:
+      context: ./cyrus
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-cyrus}:${POSTGRES_PASSWORD:-cyrus}@postgres:5432/${POSTGRES_DB:-cyrus}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-cyrus}:${RABBITMQ_PASSWORD:-cyrus}@rabbitmq:5672/
+      REDIS_URL: redis://:${REDIS_PASSWORD:-cyrus}@redis:6379/0
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: python -m cyrus.workers.commsops_worker
+
+  worker_commander:
+    build:
+      context: ./cyrus
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-cyrus}:${POSTGRES_PASSWORD:-cyrus}@postgres:5432/${POSTGRES_DB:-cyrus}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-cyrus}:${RABBITMQ_PASSWORD:-cyrus}@rabbitmq:5672/
+      REDIS_URL: redis://:${REDIS_PASSWORD:-cyrus}@redis:6379/0
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: python -m cyrus.workers.commander_worker
+
+volumes:
+  postgres_data:
+  rabbitmq_data:
+  redis_data:
+  surya_weights:
+  surya_output:
