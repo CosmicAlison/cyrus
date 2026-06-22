@@ -23,7 +23,6 @@ class Settings:
     LLM_TEMPERATURE: float = float(os.environ.get("LLM_TEMPERATURE", "0.1"))
 
     # Flask
-    SECRET_KEY: str = os.environ.get("SECRET_KEY", "dev-secret-change-me")
     FLASK_ENV: str = os.environ.get("FLASK_ENV", "production")
 
     # Queue names
