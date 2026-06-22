@@ -36,7 +36,7 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-RABBITMQ_URL = os.environ["RABBITMQ_URL"]
+#RABBITMQ_URL = os.environ["RABBITMQ_URL"]
 JOBS_QUEUE = "cyrus.surya_jobs"
 OUTPUT_DIR = Path(os.environ.get("SURYA_OUTPUT_DIR", "/tmp/surya_output"))
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -45,7 +45,7 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 log.info("Using device: %s", DEVICE)
 
 
-def connect_rabbitmq(retries: int = 10, delay: int = 5) -> pika.BlockingConnection:
+'''def connect_rabbitmq(retries: int = 10, delay: int = 5) -> pika.BlockingConnection:
     params = pika.URLParameters(RABBITMQ_URL)
     for attempt in range(1, retries + 1):
         try:
@@ -57,7 +57,7 @@ def connect_rabbitmq(retries: int = 10, delay: int = 5) -> pika.BlockingConnecti
             if attempt == retries:
                 raise
             time.sleep(delay)
-
+'''
 
 def process_job(model, channel, method, properties, body: bytes) -> None:
     job = json.loads(body)
@@ -155,13 +155,15 @@ def main() -> None:
     model = load_surya_model(device=DEVICE)
     log.info("Model ready")
 
-    connection = connect_rabbitmq()
-    channel = connection.channel()
+    log.info("Testing inference") 
+    run_surya_inference(model, )
+    #connection = connect_rabbitmq()
+    #channel = connection.channel()
 
-    channel.queue_declare(queue=JOBS_QUEUE, durable=True)
-    channel.basic_qos(prefetch_count=1)  # One job at a time (GPU bound)
+    #channel.queue_declare(queue=JOBS_QUEUE, durable=True)
+    #channel.basic_qos(prefetch_count=1)  # One job at a time (GPU bound)
 
-    channel.basic_consume(
+    '''channel.basic_consume(
         queue=JOBS_QUEUE,
         on_message_callback=lambda ch, method, props, body: process_job(
             model, ch, method, props, body
@@ -169,7 +171,7 @@ def main() -> None:
     )
 
     log.info("Waiting for jobs on %s ...", JOBS_QUEUE)
-    channel.start_consuming()
+    channel.start_consuming()'''
 
 
 if __name__ == "__main__":
