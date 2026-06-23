@@ -11,14 +11,14 @@ from typing import Any
 
 import pika
 
-from cyrus.agents.satops import SatOpsAgent
-from cyrus.cache import redis_client
-from cyrus.core.config import settings
-from cyrus.core.database import get_session, init_db
-from cyrus.core.models import AgentAction
-from cyrus.core.schemas import ThreatPayload
-from cyrus.messaging.consumer import BaseConsumer
-from cyrus.messaging.publisher import publish
+from agents.satops import SatOpsAgent
+from cache import redis_client
+from core.config import settings
+from core.database import get_session, init_db
+from core.models import AgentAction
+from core.schemas import ThreatPayload
+from messaging.consumer import BaseConsumer
+from messaging.publisher import publish
 
 logging.basicConfig(
     level=logging.INFO,

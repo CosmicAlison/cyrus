@@ -2,8 +2,8 @@ import logging
 
 from flask import Flask
 
-from cyrus.core.config import settings
-from cyrus.core.database import init_db
+from core.config import settings
+from core.database import init_db
 
 logging.basicConfig(
     level=logging.INFO,
@@ -20,11 +20,11 @@ def create_app() -> Flask:
         init_db()
 
     # Register blueprints
-    from cyrus.api.routes.forecast import bp as forecast_bp
-    from cyrus.api.routes.threats import bp as threats_bp
-    from cyrus.api.routes.actions import bp as actions_bp
-    from cyrus.api.routes.stream import bp as stream_bp
-    from cyrus.api.routes.status import bp as status_bp
+    from api.routes.forecast import bp as forecast_bp
+    from api.routes.threats import bp as threats_bp
+    from api.routes.actions import bp as actions_bp
+    from api.routes.stream import bp as stream_bp
+    from api.routes.status import bp as status_bp
 
     app.register_blueprint(forecast_bp, url_prefix="/api")
     app.register_blueprint(threats_bp, url_prefix="/api")

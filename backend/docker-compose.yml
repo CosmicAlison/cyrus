@@ -111,7 +111,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: python -m cyrus.workers.helio_worker
+    command: python -m workers.helio_worker
 
   worker_satops:
     build:
@@ -131,7 +131,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: python -m cyrus.workers.satops_worker
+    command: python -m workers.satops_worker
 
   worker_gridops:
     build:
@@ -151,7 +151,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: python -m cyrus.workers.gridops_worker
+    command: python -m workers.gridops_worker
 
   worker_commsops:
     build:
@@ -171,7 +171,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: python -m cyrus.workers.commsops_worker
+    command: python -m workers.commsops_worker
 
   worker_commander:
     build:
@@ -191,7 +191,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: python -m cyrus.workers.commander_worker
+    command: python -m workers.commander_worker
 
 volumes:
   postgres_data:

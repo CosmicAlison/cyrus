@@ -8,9 +8,9 @@ and issues rerouting advisories / backup comms switches for at-risk flights.
 import json
 import logging
 
-from cyrus.agents.base_agent import BaseAgent
-from cyrus.core.schemas import ThreatPayload, AgentReport
-from cyrus.tools.comms_tools import COMMS_TOOLS
+from agents.base_agent import BaseAgent
+from core.schemas import ThreatPayload, AgentReport
+from tools.comms_tools import COMMS_TOOLS
 
 log = logging.getLogger(__name__)
 

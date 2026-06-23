@@ -13,4 +13,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 ENV PYTHONPATH=/app
-ENV FLASK_APP=cyrus.api.app:create_app
+ENV FLASK_APP=api.app:create_app

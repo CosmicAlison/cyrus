@@ -9,8 +9,8 @@ from typing import Any
 
 from langchain_core.tools import tool
 
-from cyrus.core.database import get_session
-from cyrus.core.models import GridNode
+from core.database import get_session
+from core.models import GridNode
 
 log = logging.getLogger(__name__)
 

@@ -11,13 +11,13 @@ from typing import Any
 
 import pika
 
-from cyrus.agents.commander import CommanderAgent
-from cyrus.cache import redis_client
-from cyrus.core.config import settings
-from cyrus.core.database import get_session, init_db
-from cyrus.core.models import MitigationLog, ForecastRun
-from cyrus.core.schemas import AgentReport, ThreatPayload
-from cyrus.messaging.consumer import BaseConsumer
+from agents.commander import CommanderAgent
+from cache import redis_client
+from core.config import settings
+from core.database import get_session, init_db
+from core.models import MitigationLog, ForecastRun
+from core.schemas import AgentReport, ThreatPayload
+from messaging.consumer import BaseConsumer
 from datetime import datetime, timezone
 
 logging.basicConfig(
@@ -132,7 +132,7 @@ class CommanderWorker(BaseConsumer):
     def _load_threat_payload(self, job_id: str) -> ThreatPayload | None:
         """Load ThreatPayload from Postgres ThreatEvent."""
         try:
-            from cyrus.core.models import ThreatEvent
+            from core.models import ThreatEvent
             with get_session() as session:
                 event = (
                     session.query(ThreatEvent)

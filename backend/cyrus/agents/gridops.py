@@ -8,9 +8,9 @@ and triggers load rerouting or transformer decoupling as needed.
 import json
 import logging
 
-from cyrus.agents.base_agent import BaseAgent
-from cyrus.core.schemas import ThreatPayload, AgentReport
-from cyrus.tools.grid_tools import GRID_TOOLS
+from agents.base_agent import BaseAgent
+from core.schemas import ThreatPayload, AgentReport
+from tools.grid_tools import GRID_TOOLS
 
 log = logging.getLogger(__name__)
 

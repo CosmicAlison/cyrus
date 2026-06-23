@@ -10,9 +10,9 @@ import json
 import logging
 from typing import Any
 
-from cyrus.agents.base_agent import BaseAgent
-from cyrus.core.schemas import ThreatPayload, AgentReport
-from cyrus.tools.satellite_tools import SATELLITE_TOOLS
+from agents.base_agent import BaseAgent
+from core.schemas import ThreatPayload, AgentReport
+from tools.satellite_tools import SATELLITE_TOOLS
 
 log = logging.getLogger(__name__)
 

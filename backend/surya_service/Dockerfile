@@ -2,22 +2,19 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# System deps for NetCDF4 / HDF5
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libhdf5-dev \
-    libnetcdf-dev \
-    gcc \
-    git \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y \
+    git curl build-essential && rm -rf /var/lib/apt/lists/*
 
-# Install uv (used by Surya's own tooling)
-RUN curl -Ls https://astral.sh/uv/install.sh | sh
-ENV PATH="/root/.cargo/bin:$PATH"
+RUN pip install uv
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN git clone https://github.com/NASA-IMPACT/Surya.git /opt/surya
 
-COPY . .
+WORKDIR /opt/surya
 
-CMD ["python", "runner.py"]
+RUN uv sync
+
+WORKDIR /app
+
+COPY . /app
+
+ENV PYTHONPATH=/opt/surya:/app

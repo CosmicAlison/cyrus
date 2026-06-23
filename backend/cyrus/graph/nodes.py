@@ -9,12 +9,12 @@ a partial dict of keys they've updated.
 import logging
 from typing import Any
 
-from cyrus.agents.helio_analyst import HelioAnalyst
-from cyrus.agents.satops import SatOpsAgent
-from cyrus.agents.gridops import GridOpsAgent
-from cyrus.agents.commsops import CommsOpsAgent
-from cyrus.agents.commander import CommanderAgent
-from cyrus.core.schemas import ThreatPayload, AgentReport
+from agents.helio_analyst import HelioAnalyst
+from agents.satops import SatOpsAgent
+from agents.gridops import GridOpsAgent
+from agents.commsops import CommsOpsAgent
+from agents.commander import CommanderAgent
+from core.schemas import ThreatPayload, AgentReport
 
 log = logging.getLogger(__name__)
 

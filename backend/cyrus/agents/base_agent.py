@@ -11,7 +11,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.tools import BaseTool
 from langchain_openai import ChatOpenAI
 
-from cyrus.core.config import settings
+from core.config import settings
 
 log = logging.getLogger(__name__)
 

@@ -9,8 +9,8 @@ produces the final ExecutiveBrief for the dashboard.
 import json
 import logging
 
-from cyrus.agents.base_agent import BaseAgent
-from cyrus.core.schemas import AgentReport, ExecutiveBrief, ThreatPayload
+from agents.base_agent import BaseAgent
+from core.schemas import AgentReport, ExecutiveBrief, ThreatPayload
 
 log = logging.getLogger(__name__)
 
