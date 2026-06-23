@@ -1,270 +1,166 @@
 """
-Loads the Surya foundation model from HuggingFace and provides
-data fetching / forward pass utilities.
+Drives Surya inference via its own CLI entry point:
+    python easy_inference/run_easy_inference.py --config-path <yaml>
 
-Model: nasa-ibm-ai4science/Surya-1.0  (366M parameters)
-Architecture: Spectral-gated transformer with long-short range attention.
+The Surya repo does NOT expose a stable Python import API — the model
+architecture is loaded internally by run_easy_inference.py using its own
+config-driven factory. We therefore drive it as a subprocess with a
+generated YAML config and collect the output prediction.nc from the
+configured output_dir.
+
+Surya config key facts (from config_easy.yaml):
+  - prompt_for_dates: false  → non-interactive, uses YAML dates
+  - rollout_steps            → number of 12-min autoregressive steps
+  - output_dir               → where prediction.nc is written
+  - advanced.device: auto    → cuda → mps → cpu priority
+  - advanced.weights_path    → auto-downloaded from HF on first run
+  - cadence_minutes: 12      → SDO native cadence (override default of 60)
 """
 
 import logging
-from datetime import datetime, timedelta
+import subprocess
+import sys
+import textwrap
+from datetime import datetime
 from pathlib import Path
 
-import numpy as np
-import torch
-import xarray as xr
-from huggingface_hub import snapshot_download
+import yaml
 
 log = logging.getLogger(__name__)
 
-HF_REPO = "nasa-ibm-ai4science/Surya-1.0"
+SURYA_REPO = Path("/surya")
+EASY_INFERENCE_SCRIPT = SURYA_REPO / "easy_inference" / "run_easy_inference.py"
 
-# SDO AIA + HMI channels in canonical order
-AIA_CHANNELS = ["94", "131", "171", "193", "211", "304", "335", "1600"]
-HMI_CHANNELS = ["Bx", "By", "Bz", "doppler", "continuum"]
-ALL_CHANNELS = AIA_CHANNELS + HMI_CHANNELS  # 13 total
-
-# SDO cadence: 12-minute intervals
-SDO_CADENCE_MINUTES = 12
-SPATIAL_RESOLUTION = 512  # Downsampled from 4096 for inference (configurable)
-
-# Public SuryaBench S3 data bucket (no auth required)
-SURYA_S3_BASE = "s3://nasa-surya-bench/sdo"
+# Model assets are auto-downloaded here by run_easy_inference.py
+MODEL_DATA_DIR = SURYA_REPO / "data" / "Surya-1.0"
 
 
-def load_surya_model(device: str = "cpu") -> torch.nn.Module:
-    """
-    Download and load Surya weights from HuggingFace Hub.
-    Weights are cached locally on first run (~1.5GB).
-    """
-    log.info("Downloading Surya weights from %s ...", HF_REPO)
-    model_dir = snapshot_download(repo_id=HF_REPO)
-    log.info("Weights cached at: %s", model_dir)
-
-    # Surya uses a custom config-driven loader from its repo
-    # Import dynamically since surya_service has its own env
-    try:
-        from surya.model import SuryaModel  # NASA-IMPACT package if installed
-        model = SuryaModel.from_pretrained(model_dir)
-    except ImportError:
-        # Fallback: load via transformers AutoModel (for foundation weights)
-        from transformers import AutoModel
-        model = AutoModel.from_pretrained(model_dir, trust_remote_code=True)
-
-    model = model.to(device)
-    model.eval()
-    log.info("Surya model loaded (%s)", device)
-    return model
-
-
-def fetch_sdo_data(
+def build_config(
     start_dt: datetime,
     end_dt: datetime,
-    device: str = "cpu",
-    resolution: int = SPATIAL_RESOLUTION,
-) -> torch.Tensor:
-    """
-    Fetch Solar Dynamics Observatory data from the public SuryaBench S3 bucket.
-
-    Returns a tensor of shape:
-        (T, C, H, W)
-        T = number of 12-minute timesteps
-        C = 13 channels (8 AIA + 5 HMI)
-        H = W = resolution
-
-    Data is normalised to [0, 1] per channel using pre-computed SDO statistics.
-    """
-    try:
-        import boto3
-        from botocore import UNSIGNED
-        from botocore.client import Config
-        s3 = boto3.client("s3", config=Config(signature_version=UNSIGNED))
-        return _fetch_from_s3(s3, start_dt, end_dt, resolution, device)
-    except Exception as exc:
-        log.warning("S3 fetch failed (%s) — generating synthetic SDO data", exc)
-        return _synthetic_sdo_data(start_dt, end_dt, resolution, device)
-
-
-def _fetch_from_s3(
-    s3,
-    start_dt: datetime,
-    end_dt: datetime,
-    resolution: int,
-    device: str,
-) -> torch.Tensor:
-    """Fetch real SDO NetCDF tiles from SuryaBench S3."""
-    import tempfile
-
-    timesteps = _generate_timesteps(start_dt, end_dt)
-    frames = []
-
-    for ts in timesteps:
-        date_str = ts.strftime("%Y/%m/%d")
-        time_str = ts.strftime("%H%M")
-        channel_arrays = []
-
-        for ch in ALL_CHANNELS:
-            key = f"aia_hmi/{date_str}/{ch}/{time_str}.nc"
-            with tempfile.NamedTemporaryFile(suffix=".nc") as tmp:
-                try:
-                    s3.download_file("nasa-surya-bench", key, tmp.name)
-                    ds = xr.open_dataset(tmp.name)
-                    arr = ds["data"].values
-                    arr = _resize_channel(arr, resolution)
-                    arr = _normalise_channel(arr, ch)
-                    channel_arrays.append(arr)
-                except Exception:
-                    # Missing timestep — fill with zeros
-                    channel_arrays.append(np.zeros((resolution, resolution), dtype=np.float32))
-
-        frames.append(np.stack(channel_arrays, axis=0))  # (C, H, W)
-
-    tensor = torch.tensor(np.stack(frames, axis=0), dtype=torch.float32)  # (T, C, H, W)
-    return tensor.to(device)
-
-
-def _synthetic_sdo_data(
-    start_dt: datetime,
-    end_dt: datetime,
-    resolution: int,
-    device: str,
-) -> torch.Tensor:
-    """
-    Generate physically-plausible synthetic SDO data for local dev / testing.
-    Simulates a solar active region with a flare signature in AIA 131/171 channels.
-    """
-    timesteps = _generate_timesteps(start_dt, end_dt)
-    T = len(timesteps)
-    C = len(ALL_CHANNELS)
-
-    data = np.random.rand(T, C, resolution, resolution).astype(np.float32) * 0.1
-
-    # Simulate active region: bright patch in AIA 131 (channel index 1)
-    cx, cy = resolution // 3, resolution // 2
-    for t in range(T):
-        intensity = 0.3 + 0.6 * (t / max(T - 1, 1))  # brightening over time
-        for c_idx in [1, 2, 5]:  # AIA 131, 171, 304 — flare-sensitive
-            rr, cc = np.ogrid[:resolution, :resolution]
-            mask = (rr - cx) ** 2 + (cc - cy) ** 2 < (resolution // 10) ** 2
-            data[t, c_idx][mask] = intensity * np.random.uniform(0.8, 1.0)
-
-        # HMI Bz (index 10) — bipolar magnetic field
-        data[t, 10] = np.sin(
-            np.linspace(0, np.pi, resolution)[:, None] * 0.5
-        ) * 0.5
-
-    return torch.tensor(data).to(device)
-
-
-def run_forward_pass(
-    model: torch.nn.Module,
-    input_tensor: torch.Tensor,
     rollout_steps: int,
-    device: str,
-) -> torch.Tensor:
+    output_dir: Path,
+    config_path: Path,
+) -> Path:
     """
-    Autoregressive forward pass through Surya.
-
-    input_tensor: (T, C, H, W) — observed frames
-    Returns:      (rollout_steps, C, H, W) — predicted future frames
+    Write a Surya config YAML for this job and return its path.
+    Sets prompt_for_dates: false so the script runs non-interactively.
     """
-    with torch.no_grad():
-        # Surya expects a batch dimension: (B, T, C, H, W)
-        x = input_tensor.unsqueeze(0).to(device)
+    # Compute a validation_data_dir name that matches Surya's convention
+    date_tag = start_dt.strftime("%Y%m%d_%Hmin")
+    validation_data_dir = str(SURYA_REPO / f"data/Surya-1.0_validation_data_{date_tag}")
 
-        try:
-            predictions = model(x, rollout_steps=rollout_steps)
-            # Expected output: (B, rollout_steps, C, H, W)
-            return predictions.squeeze(0).cpu()
-        except TypeError:
-            # Fallback if model signature differs — standard forward
-            predictions = model(x)
-            return predictions.squeeze(0).cpu()
-
-
-def save_prediction_nc(
-    prediction: torch.Tensor,
-    input_tensor: torch.Tensor,
-    start_dt: datetime,
-    path: Path,
-) -> None:
-    """
-    Save Surya prediction tensor to NetCDF4 for downstream parsing.
-
-    File variables:
-        prediction  — (time, channel, lat, lon) predicted frames
-        input       — (time, channel, lat, lon) observed frames
-        channel     — channel name strings
-        time        — predicted timestamps as ISO strings
-    """
-    pred_np = prediction.numpy()  # (T, C, H, W)
-    inp_np = input_tensor.numpy()
-
-    rollout_steps, C, H, W = pred_np.shape
-    pred_times = [
-        (start_dt + timedelta(minutes=SDO_CADENCE_MINUTES * (i + 1))).isoformat()
-        for i in range(rollout_steps)
-    ]
-
-    ds = xr.Dataset(
-        {
-            "prediction": xr.DataArray(
-                pred_np,
-                dims=["time", "channel", "y", "x"],
-                attrs={"description": "Surya predicted solar observations"},
-            ),
-            "input": xr.DataArray(
-                inp_np,
-                dims=["input_time", "channel", "y", "x"],
-                attrs={"description": "SDO observed input frames"},
-            ),
-        },
-        coords={
-            "time": pred_times,
-            "channel": ALL_CHANNELS,
-        },
-        attrs={
-            "model": HF_REPO,
-            "forecast_start": start_dt.isoformat(),
+    config = {
+        "user": {
+            "start_datetime": start_dt.strftime("%Y-%m-%d %H:%M:%S"),
+            "end_datetime": end_dt.strftime("%Y-%m-%d %H:%M:%S"),
+            "prompt_for_dates": False,
+            "output_dir": str(output_dir),
             "rollout_steps": rollout_steps,
         },
+        "advanced": {
+            "foundation_config_path": str(MODEL_DATA_DIR / "config.yaml"),
+            "scalers_path": str(MODEL_DATA_DIR / "scalers.yaml"),
+            "weights_path": str(MODEL_DATA_DIR / "surya.366m.v1.pt"),
+            "model_repo_id": "nasa-ibm-ai4science/Surya-1.0",
+            "model_allow_patterns": ["config.yaml", "scalers.yaml", "surya.366m.v1.pt"],
+            "validation_data_dir": validation_data_dir,
+            "index_path": str(output_dir / "index.csv"),
+            "cadence_minutes": 12,
+            "time_delta_input_minutes": [-12, 0],
+            "time_delta_target_minutes": 12,
+            "s3_bucket": "nasa-surya-bench",
+            "download_skip_existing": True,
+            "download_verify_size": False,
+            "download_match_tolerance_minutes": 0,
+            "prune_validation_data_to_window": False,
+            "device": "auto",
+            "dtype": "auto",
+            "num_workers": 0,
+            "prefetch_factor": 2,
+            "gt_prefetch_workers": 4,
+            "disable_autocast": False,
+            "enable_tf32": True,
+            "enable_cudnn_benchmark": True,
+            "cpu_threads": 0,
+            "show_progress": True,
+            "debug_mode": False,
+            "debug_log_path": str(output_dir / "inference_debug.txt"),
+            "prediction_dtype": "float32",
+        },
+    }
+
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(config_path, "w") as f:
+        yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+
+    log.info("Surya config written to %s", config_path)
+    return config_path
+
+
+def run_inference(
+    start_dt: datetime,
+    end_dt: datetime,
+    rollout_steps: int,
+    output_dir: Path,
+) -> Path:
+    """
+    Run Surya easy_inference and return the path to prediction.nc.
+
+    Streams stdout/stderr from the subprocess to our logger so
+    progress is visible in Docker logs.
+    """
+    output_dir.mkdir(parents=True, exist_ok=True)
+    config_path = output_dir / "config.yaml"
+
+    build_config(
+        start_dt=start_dt,
+        end_dt=end_dt,
+        rollout_steps=rollout_steps,
+        output_dir=output_dir,
+        config_path=config_path,
     )
 
-    ds.to_netcdf(str(path))
+    python_bin = SURYA_REPO / ".venv" / "bin" / "python"
+    cmd = [
+        str(python_bin),
+        str(EASY_INFERENCE_SCRIPT),
+        "--config-path",
+        str(config_path),
+    ]
 
+    log.info("Running Surya: %s", " ".join(cmd))
 
-# ── Helpers ──────────────────────────────────────────────────────────────────
+    proc = subprocess.Popen(
+        cmd,
+        cwd=str(SURYA_REPO),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
 
-def _generate_timesteps(start_dt: datetime, end_dt: datetime) -> list[datetime]:
-    steps = []
-    current = start_dt
-    while current <= end_dt:
-        steps.append(current)
-        current += timedelta(minutes=SDO_CADENCE_MINUTES)
-    return steps or [start_dt]
+    for line in proc.stdout:
+        log.info("[surya] %s", line.rstrip())
 
+    proc.wait()
 
-def _resize_channel(arr: np.ndarray, target: int) -> np.ndarray:
-    from scipy.ndimage import zoom
-    if arr.shape[0] == target:
-        return arr.astype(np.float32)
-    factor = target / arr.shape[0]
-    return zoom(arr, factor, order=1).astype(np.float32)
+    if proc.returncode != 0:
+        raise RuntimeError(
+            f"Surya inference failed with exit code {proc.returncode}. "
+            f"Check logs above for details."
+        )
 
+    # run_easy_inference.py writes prediction.nc directly into output_dir
+    prediction_path = output_dir / "prediction.nc"
+    if not prediction_path.exists():
+        # Some versions nest under a timestamped subfolder — find it
+        candidates = list(output_dir.rglob("prediction.nc"))
+        if not candidates:
+            raise FileNotFoundError(
+                f"prediction.nc not found under {output_dir} after Surya run"
+            )
+        prediction_path = candidates[0]
+        log.info("prediction.nc found at: %s", prediction_path)
 
-# Per-channel normalisation stats (approximate SDO dataset statistics)
-_CHANNEL_STATS = {
-    "94": (50.0, 300.0), "131": (100.0, 800.0), "171": (500.0, 3000.0),
-    "193": (1000.0, 5000.0), "211": (300.0, 2000.0), "304": (200.0, 1500.0),
-    "335": (20.0, 150.0), "1600": (100.0, 1000.0),
-    "Bx": (-500.0, 500.0), "By": (-500.0, 500.0), "Bz": (-2000.0, 2000.0),
-    "doppler": (-3000.0, 3000.0), "continuum": (10000.0, 60000.0),
-}
-
-
-def _normalise_channel(arr: np.ndarray, channel: str) -> np.ndarray:
-    lo, hi = _CHANNEL_STATS.get(channel, (arr.min(), arr.max()))
-    span = hi - lo
-    if span == 0:
-        return np.zeros_like(arr, dtype=np.float32)
-    return np.clip((arr - lo) / span, 0.0, 1.0).astype(np.float32)
+    return prediction_path

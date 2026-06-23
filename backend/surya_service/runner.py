@@ -1,32 +1,32 @@
 """
+runner.py
+---------
 Surya service entry point.
 
 Listens on RabbitMQ queue `cyrus.surya_jobs` for forecast job requests,
-runs Surya inference via the NASA-IMPACT model, parses the output NetCDF,
+drives Surya inference via its CLI subprocess, parses the output NetCDF,
 and publishes a structured forecast dict to `cyrus.raw_forecast`.
 
 Job message schema (JSON):
     {
-        "job_id": str,
-        "start_datetime": "YYYY-MM-DDTHH:MM:SS",   # UTC
-        "end_datetime":   "YYYY-MM-DDTHH:MM:SS",   # UTC
-        "rollout_steps":  int                        # default 12
+        "job_id":         str,
+        "start_datetime": "YYYY-MM-DDTHH:MM:SS",   # UTC ISO format
+        "end_datetime":   "YYYY-MM-DDTHH:MM:SS",
+        "rollout_steps":  int                        # default 5
     }
 """
 
 import json
 import logging
 import os
-import tempfile
 import time
 import traceback
 from datetime import datetime
 from pathlib import Path
 
 import pika
-import torch
 
-from model import load_surya_model
+from model import run_inference
 from parser import parse_prediction_nc
 from publisher import publish_raw_forecast
 
@@ -37,16 +37,18 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 RABBITMQ_URL = os.environ["RABBITMQ_URL"]
-JOBS_QUEUE = "cyrus.surya_jobs"
-OUTPUT_DIR = Path(os.environ.get("SURYA_OUTPUT_DIR", "/tmp/surya_output"))
-OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+JOBS_QUEUE   = "cyrus.surya_jobs"
+OUTPUT_BASE  = Path(os.environ.get("SURYA_OUTPUT_DIR", "/tmp/surya_output"))
+OUTPUT_BASE.mkdir(parents=True, exist_ok=True)
 
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-log.info("Using device: %s", DEVICE)
 
+# ── RabbitMQ connection ───────────────────────────────────────────────────────
 
 def connect_rabbitmq(retries: int = 10, delay: int = 5) -> pika.BlockingConnection:
     params = pika.URLParameters(RABBITMQ_URL)
+    params.heartbeat = 600
+    params.blocked_connection_timeout = 300
+
     for attempt in range(1, retries + 1):
         try:
             conn = pika.BlockingConnection(params)
@@ -59,29 +61,34 @@ def connect_rabbitmq(retries: int = 10, delay: int = 5) -> pika.BlockingConnecti
             time.sleep(delay)
 
 
-def process_job(model, channel, method, properties, body: bytes) -> None:
+# ── Message handler ───────────────────────────────────────────────────────────
+
+def process_job(
+    channel: pika.channel.Channel,
+    method: pika.spec.Basic.Deliver,
+    _properties: pika.spec.BasicProperties,
+    body: bytes,
+) -> None:
     job = json.loads(body)
     job_id = job["job_id"]
-    log.info("Processing job %s", job_id)
+    log.info("Received job %s", job_id)
 
     try:
-        start_dt = datetime.fromisoformat(job["start_datetime"])
-        end_dt = datetime.fromisoformat(job["end_datetime"])
-        rollout_steps = job.get("rollout_steps", 12)
+        start_dt      = datetime.fromisoformat(job["start_datetime"])
+        end_dt        = datetime.fromisoformat(job["end_datetime"])
+        rollout_steps = int(job.get("rollout_steps", 5))
 
-        job_output_dir = OUTPUT_DIR / job_id
-        job_output_dir.mkdir(parents=True, exist_ok=True)
+        job_output_dir = OUTPUT_BASE / job_id
 
-        # Run Surya inference
-        prediction_path = run_surya_inference(
-            model=model,
+        # ── Run Surya (subprocess) ────────────────────────────────────────────
+        prediction_path = run_inference(
             start_dt=start_dt,
             end_dt=end_dt,
             rollout_steps=rollout_steps,
             output_dir=job_output_dir,
         )
 
-        # Parse .nc output into structured dict
+        # ── Parse prediction.nc → structured dict ─────────────────────────────
         forecast_payload = parse_prediction_nc(
             nc_path=prediction_path,
             job_id=job_id,
@@ -89,7 +96,7 @@ def process_job(model, channel, method, properties, body: bytes) -> None:
             end_dt=end_dt,
         )
 
-        # Publish to cyrus.raw_forecast
+        # ── Publish to cyrus.raw_forecast ─────────────────────────────────────
         publish_raw_forecast(channel, forecast_payload)
 
         channel.basic_ack(delivery_tag=method.delivery_tag)
@@ -97,80 +104,26 @@ def process_job(model, channel, method, properties, body: bytes) -> None:
 
     except Exception:
         log.error("Job %s failed:\n%s", job_id, traceback.format_exc())
-        # Nack without requeue — dead-letter for inspection
+        # Nack without requeue — goes to dead-letter for inspection
         channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
 
 
-def run_surya_inference(
-    model,
-    start_dt: datetime,
-    end_dt: datetime,
-    rollout_steps: int,
-    output_dir: Path,
-) -> Path:
-    """
-    Run Surya forward pass and save prediction to NetCDF.
-
-    The NASA-IMPACT Surya model accepts a sequence of multi-channel solar
-    observation tensors and autoregressively predicts future states.
-
-    Input channels (13 total):
-        AIA: 94, 131, 171, 193, 211, 304, 335, 1600 Angstrom
-        HMI: Bx, By, Bz (magnetogram), Dopplergram, Continuum
-
-    The model is loaded via HuggingFace (nasa-ibm-ai4science/Surya-1.0).
-    Data is fetched from the public SuryaBench S3 bucket.
-    """
-    from model import fetch_sdo_data, run_forward_pass, save_prediction_nc
-
-    log.info("Fetching SDO data: %s → %s", start_dt.isoformat(), end_dt.isoformat())
-    input_tensor = fetch_sdo_data(
-        start_dt=start_dt,
-        end_dt=end_dt,
-        device=DEVICE,
-    )
-
-    log.info("Running Surya forward pass (%d rollout steps)", rollout_steps)
-    prediction_tensor = run_forward_pass(
-        model=model,
-        input_tensor=input_tensor,
-        rollout_steps=rollout_steps,
-        device=DEVICE,
-    )
-
-    prediction_path = output_dir / "prediction.nc"
-    save_prediction_nc(
-        prediction=prediction_tensor,
-        input_tensor=input_tensor,
-        start_dt=start_dt,
-        path=prediction_path,
-    )
-
-    log.info("Prediction saved: %s", prediction_path)
-    return prediction_path
-
+# ── Entry point ───────────────────────────────────────────────────────────────
 
 def main() -> None:
-    log.info("Loading Surya model from HuggingFace...")
-    model = load_surya_model(device=DEVICE)
-    log.info("Model ready")
-
-    log.info("Testing inference") 
-
     connection = connect_rabbitmq()
-    channel = connection.channel()
+    channel    = connection.channel()
 
     channel.queue_declare(queue=JOBS_QUEUE, durable=True)
-    channel.basic_qos(prefetch_count=1)  # One job at a time (GPU bound)
+    # prefetch_count=1: Surya is GPU-bound, process one job at a time
+    channel.basic_qos(prefetch_count=1)
 
     channel.basic_consume(
         queue=JOBS_QUEUE,
-        on_message_callback=lambda ch, method, props, body: process_job(
-            model, ch, method, props, body
-        ),
+        on_message_callback=process_job,
     )
 
-    log.info("Waiting for jobs on %s ...", JOBS_QUEUE)
+    log.info("Surya service ready — waiting for jobs on %s", JOBS_QUEUE)
     channel.start_consuming()
 
 
