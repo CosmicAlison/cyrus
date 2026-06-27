@@ -47,29 +47,6 @@ services:
       timeout: 5s
       retries: 5
 
-  surya_service:
-    build:
-      context: ./surya_service
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    environment:
-      RABBITMQ_URL: amqp://${RABBITMQ_USER:-cyrus}:${RABBITMQ_PASSWORD:-cyrus}@rabbitmq:5672/
-      HF_HOME: /cache/huggingface
-    volumes:
-      - surya_weights:/cache/huggingface
-      - surya_output:/tmp/surya_output
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    # uncomment if GPU available:
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: 1
-    #           capabilities: [gpu]
-
   api:
     build:
       context: ./cyrus
@@ -197,5 +174,3 @@ volumes:
   postgres_data:
   rabbitmq_data:
   redis_data:
-  surya_weights:
-  surya_output:

@@ -1,0 +1,133 @@
+# Dockerfile.rocm
+# ───────────────
+# AMD Developer Cloud deployment image (MI300X + ROCm).
+#
+# What this Dockerfile does:
+#   1. Starts from AMD's official ROCm + PyTorch base image
+#   2. Installs system deps (NetCDF4, HDF5, git, etc.)
+#   3. Clones NASA-IMPACT/Surya repo
+#   4. Installs all Surya dependencies via uv sync (locked)
+#   5. Installs our extra deps (pika, pyyaml, scipy, netCDF4, pandas)
+#   6. Downloads all four pretrained downstream weights from HuggingFace
+#      (solar_flare, ar_segmentation, euv_spectra, solar_wind)
+#   7. Downloads all four benchmark datasets (needed for timestamp index)
+#   8. Copies our surya_service code
+#
+# Fine-tuning is NOT done in the Dockerfile — run finetune/run_all.sh
+# separately on the AMD instance ONCE before deployment. The pretrained
+# HuggingFace weights are used by default (already fine-tuned by NASA-IBM).
+#
+# Build:
+#   docker build -f Dockerfile.rocm -t cyrus-surya-rocm \
+#     --build-arg HF_TOKEN=hf_... .
+#
+# Run:
+#   docker run --device=/dev/kfd --device=/dev/dri \
+#     --group-add video --group-add render --ipc=host \
+#     -e RABBITMQ_URL=amqp://... -e SURYA_USE_MOCK=false \
+#     -v surya_weights:/cache/huggingface \
+#     cyrus-surya-rocm
+
+FROM rocm/pytorch:rocm6.3_ubuntu22.04_py3.11_pytorch_release_2.3.0
+
+#  Build args
+ARG HF_TOKEN=""
+ENV HF_TOKEN=${HF_TOKEN}
+ENV HF_HOME=/cache/huggingface
+ENV HUGGINGFACE_HUB_TOKEN=${HF_TOKEN}
+
+# System dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libhdf5-dev \
+    libnetcdf-dev \
+    libgeos-dev \
+    gcc \
+    g++ \
+    git \
+    curl \
+    wget \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:$PATH"
+
+# Clone Surya repo
+# Depth=1 for speed — we only need latest commit
+RUN git clone --depth 1 https://github.com/NASA-IMPACT/Surya.git /surya
+WORKDIR /surya
+
+# Install Surya dependencies via uv (uses upstream lockfile)
+RUN uv sync --frozen
+
+# Install our extra dependencies into the Surya venv
+# pika:      RabbitMQ client
+# pyyaml:    config generation
+# scipy:     mask connected component analysis (AR segmentation)
+# netCDF4:   reading NetCDF index files
+# pandas:    CSV timestamp index loading
+# sunpy:     required by ar_segmentation/infer.py for colormaps
+# peft:      LoRA (likely already in Surya deps but ensure it's there)
+RUN uv pip install \
+    pika>=1.3.2 \
+    pyyaml>=6.0.1 \
+    scipy>=1.12.0 \
+    netCDF4>=1.6.5 \
+    pandas>=2.0.0 \
+    sunpy>=5.0.0 \
+    peft>=0.10.0
+
+# Activate Surya venv for all subsequent commands
+ENV VIRTUAL_ENV=/surya/.venv
+ENV PATH="/surya/.venv/bin:$PATH"
+ENV PYTHONPATH="/surya:$PYTHONPATH"
+
+#  ROCm device configuration
+ENV HSA_OVERRIDE_GFX_VERSION=9.4.0
+ENV ROCR_VISIBLE_DEVICES=0
+
+# Download base Surya-1.0 weights
+# These are the foundation model weights shared by all four tasks
+RUN python -c "\
+from huggingface_hub import snapshot_download; \
+snapshot_download(\
+    repo_id='nasa-ibm-ai4science/Surya-1.0', \
+    local_dir='/surya/data/Surya-1.0', \
+    token='${HF_TOKEN}' or None\
+)"
+
+# ── Download pretrained downstream weights ────────────────────────────────────
+# These are already fine-tuned by NASA-IBM — no need to run finetune.sh
+# unless you want to re-train on a different data split.
+
+WORKDIR /surya/downstream_examples/solar_flare_forcasting
+RUN bash download_data.sh || echo "WARNING: flare download failed — retry at runtime"
+
+WORKDIR /surya/downstream_examples/ar_segmentation
+RUN bash download_data.sh || echo "WARNING: AR download failed — retry at runtime"
+# AR segmentation needs CSV index and mask extraction
+RUN python create_ar_csv.py || echo "WARNING: create_ar_csv.py failed"
+RUN cd assets/surya-bench-ar-segmentation && \
+    mkdir -p data && \
+    (tar -xzf data.tar.gz -C data 2>/dev/null || echo "WARNING: tar extraction failed")
+
+WORKDIR /surya/downstream_examples/euv_spectra_prediction
+RUN bash download_data.sh || echo "WARNING: EUV download failed — retry at runtime"
+
+WORKDIR /surya/downstream_examples/solar_wind_forcasting
+RUN bash download_data.sh || echo "WARNING: wind download failed — retry at runtime"
+
+#  Copy surya_service code
+WORKDIR /app
+COPY . .
+
+# Verify ROCm at build time
+RUN python -c "\
+import torch; \
+print('PyTorch:', torch.__version__); \
+print('ROCm available:', torch.cuda.is_available()); \
+print('Device count:', torch.cuda.device_count())\
+" || echo "WARNING: ROCm check failed — expected in CI without GPU"
+
+CMD ["python", "runner.py"]
