@@ -18,8 +18,8 @@ import logging
 
 from flask import Blueprint, Response, request, stream_with_context
 
-from cyrus.cache.redis_client import get_pubsub
-from cyrus.core.config import settings
+from cache.redis_client import get_pubsub
+from core.config import settings
 
 log = logging.getLogger(__name__)
 

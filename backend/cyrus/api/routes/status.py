@@ -9,8 +9,8 @@ GET /api/status/summary
 
 from flask import Blueprint, jsonify
 
-from cyrus.core.database import get_session
-from cyrus.core.models import Satellite, GridNode, FlightRoute, MitigationLog
+from core.database import get_session
+from core.models import Satellite, GridNode, FlightRoute, MitigationLog
 
 bp = Blueprint("status", __name__)
 

@@ -4,13 +4,13 @@ from datetime import datetime, timezone
 
 from flask import Blueprint, jsonify, request
 
-from cyrus.cache import redis_client
-from cyrus.core.config import settings
-from cyrus.core.database import get_session
-from cyrus.core.models import ForecastRun
-from cyrus.core.schemas import ForecastRequest, ForecastResponse
-from cyrus.messaging.broker import connect, declare_all_queues
-from cyrus.messaging.publisher import publish
+from cache import redis_client
+from core.config import settings
+from core.database import get_session
+from core.models import ForecastRun
+from core.schemas import ForecastRequest, ForecastResponse
+from messaging.broker import connect, declare_all_queues
+from messaging.publisher import publish
 
 bp = Blueprint("forecast", __name__)
 

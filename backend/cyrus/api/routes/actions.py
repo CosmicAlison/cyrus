@@ -7,8 +7,8 @@ GET /api/actions/<forecast_run_id>     — all actions for a specific run
 
 from flask import Blueprint, jsonify, request
 
-from cyrus.core.database import get_session
-from cyrus.core.models import AgentAction
+from core.database import get_session
+from core.models import AgentAction
 
 bp = Blueprint("actions", __name__)
 

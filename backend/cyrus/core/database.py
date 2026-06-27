@@ -5,8 +5,8 @@ from datetime import datetime, timezone
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 
-from cyrus.core.config import settings
-from cyrus.core.models import Base, Satellite, GridNode, FlightRoute
+from core.config import settings
+from core.models import Base, Satellite, GridNode, FlightRoute
 
 log = logging.getLogger(__name__)
 

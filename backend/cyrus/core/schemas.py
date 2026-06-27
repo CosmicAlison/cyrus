@@ -38,7 +38,7 @@ class RawForecastPayload(BaseModel):
     summary: ForecastSummary
 
 
-# ── Agent 1 (HelioAnalyst) → cyrus.threats ───────────────────────────────────
+# Agent 1 (HelioAnalyst) → cyrus.threats
 
 SeverityLevel = Literal["low", "moderate", "high", "extreme"]
 

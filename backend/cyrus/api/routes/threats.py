@@ -6,8 +6,8 @@ GET /api/threats/<id>/brief — executive brief for a threat's forecast run
 
 from flask import Blueprint, jsonify
 
-from cyrus.core.database import get_session
-from cyrus.core.models import ThreatEvent, MitigationLog
+from core.database import get_session
+from core.models import ThreatEvent, MitigationLog
 
 bp = Blueprint("threats", __name__)
 

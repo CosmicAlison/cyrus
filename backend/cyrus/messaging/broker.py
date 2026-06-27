@@ -3,7 +3,7 @@ import time
 
 import pika
 
-from cyrus.core.config import settings
+from core.config import settings
 
 log = logging.getLogger(__name__)
 

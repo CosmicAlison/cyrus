@@ -13,7 +13,6 @@ logging.basicConfig(
 
 def create_app() -> Flask:
     app = Flask(__name__)
-    app.config["SECRET_KEY"] = settings.SECRET_KEY
     app.config["JSON_SORT_KEYS"] = False
 
     with app.app_context():

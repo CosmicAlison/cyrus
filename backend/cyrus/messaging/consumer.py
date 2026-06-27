@@ -7,7 +7,7 @@ from typing import Any
 
 import pika
 
-from cyrus.messaging.broker import connect, declare_all_queues
+from messaging.broker import connect, declare_all_queues
 
 log = logging.getLogger(__name__)
 
