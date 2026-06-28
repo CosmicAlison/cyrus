@@ -37,6 +37,13 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
+def _rocm_available() -> bool:
+    try:
+        import torch
+        return torch.cuda.is_available()
+    except Exception:
+        return False
+    
 RABBITMQ_URL          = os.environ["RABBITMQ_URL"]
 QUEUE_JOBS            = "cyrus.surya_jobs"
 QUEUE_RAW_FORECAST    = "cyrus.raw_forecast"
@@ -45,17 +52,11 @@ INFERENCE_INTERVAL    = int(os.environ.get("INFERENCE_INTERVAL_SECS", "600"))
 WIND_EVERY_N_TICKS    = int(os.environ.get("WIND_EVERY_N_TICKS", "3"))
 USE_MOCK              = os.environ.get("SURYA_USE_MOCK", "true").lower() == "true"
 DEVICE                = os.environ.get("SURYA_DEVICE", "cuda" if _rocm_available() else "cpu")
-
 log.info("Mode: %s | device: %s | cadence: %ds",
          "MOCK" if USE_MOCK else "REAL", DEVICE, INFERENCE_INTERVAL)
 
 
-def _rocm_available() -> bool:
-    try:
-        import torch
-        return torch.cuda.is_available()
-    except Exception:
-        return False
+
 
 
 # Pipeline initialisation
@@ -169,7 +170,7 @@ def connect_rabbitmq(retries: int = 15, delay: int = 5) -> pika.BlockingConnecti
     for attempt in range(1, retries + 1):
         try:
             conn = pika.BlockingConnection(params)
-            log.info("Connected to RabbitMQ at %s", RABBITMQ_URL.split("@")[-1])
+            log.info("Connected to RabbitMQ at %s", RABBITMQ_URL)
             return conn
         except Exception as exc:
             log.warning("RabbitMQ attempt %d/%d: %s", attempt, retries, exc)
