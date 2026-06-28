@@ -25,6 +25,7 @@ WORKDIR /surya
 RUN uv sync --frozen
 RUN uv pip install pika pyyaml scipy netCDF4 pandas
 
+ENV PYTHONPATH=/app
 ENV VIRTUAL_ENV=/surya/.venv
 ENV PATH="/surya/.venv/bin:$PATH"
 ENV PYTHONPATH="/surya:$PYTHONPATH"

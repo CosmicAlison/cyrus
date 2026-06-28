@@ -9,8 +9,8 @@ from typing import Any
 
 from langchain_core.tools import tool
 
-from cyrus.core.database import get_session
-from cyrus.core.models import Satellite
+from core.database import get_session
+from core.models import Satellite
 
 log = logging.getLogger(__name__)
 

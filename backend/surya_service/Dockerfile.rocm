@@ -87,6 +87,8 @@ ENV PYTHONPATH="/surya:$PYTHONPATH"
 ENV HSA_OVERRIDE_GFX_VERSION=9.4.0
 ENV ROCR_VISIBLE_DEVICES=0
 
+ENV RABBITMQ_URL="amqp://localhost:5672/"
+
 # Download base Surya-1.0 weights
 # These are the foundation model weights shared by all four tasks
 RUN python -c "\
