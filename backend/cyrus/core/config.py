@@ -5,16 +5,16 @@ from functools import lru_cache
 class Settings:
     # Database
     DATABASE_URL: str = os.environ.get(
-        "DATABASE_URL", "postgresql://cyrus:cyrus@localhost:5432/cyrus"
+        "DATABASE_URL", "postgresql://cyrus:cyrus@postgres-1:5432/cyrus"
     )
 
     # RabbitMQ
     RABBITMQ_URL: str = os.environ.get(
-        "RABBITMQ_URL", "amqp://cyrus:cyrus@localhost:5672/"
+        "RABBITMQ_URL", "amqp://cyrus:cyrus@rabbitmq-1:5672/"
     )
 
     # Redis
-    REDIS_URL: str = os.environ.get("REDIS_URL", "redis://:cyrus@localhost:6379/0")
+    REDIS_URL: str = os.environ.get("REDIS_URL", "redis://:cyrus@redis-1:6379/0")
 
     # LLM
     OPENAI_API_KEY: str = os.environ.get("OPENAI_API_KEY", "")
