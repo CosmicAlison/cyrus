@@ -1,0 +1,66 @@
+[
+  {
+    "flight_number": "CYRUS-001",
+    "origin": "New York",
+    "destination": "Tokyo",
+    "route_type": "polar",
+    "hf_dependency": "high",
+    "status": "nominal"
+  },
+  {
+    "flight_number": "CYRUS-002",
+    "origin": "London",
+    "destination": "Toronto",
+    "route_type": "polar",
+    "hf_dependency": "high",
+    "status": "nominal"
+  },
+  {
+    "flight_number": "CYRUS-003",
+    "origin": "Los Angeles",
+    "destination": "Sydney",
+    "route_type": "oceanic",
+    "hf_dependency": "medium",
+    "status": "nominal"
+  },
+  {
+    "flight_number": "CYRUS-004",
+    "origin": "Frankfurt",
+    "destination": "Singapore",
+    "route_type": "oceanic",
+    "hf_dependency": "medium",
+    "status": "nominal"
+  },
+  {
+    "flight_number": "CYRUS-005",
+    "origin": "Paris",
+    "destination": "Dubai",
+    "route_type": "non-polar",
+    "hf_dependency": "low",
+    "status": "nominal"
+  },
+  {
+    "flight_number": "CYRUS-006",
+    "origin": "Anchorage",
+    "destination": "Oslo",
+    "route_type": "polar",
+    "hf_dependency": "high",
+    "status": "nominal"
+  },
+  {
+    "flight_number": "CYRUS-007",
+    "origin": "Chicago",
+    "destination": "Tokyo",
+    "route_type": "polar",
+    "hf_dependency": "high",
+    "status": "nominal"
+  },
+  {
+    "flight_number": "CYRUS-008",
+    "origin": "Madrid",
+    "destination": "Buenos Aires",
+    "route_type": "oceanic",
+    "hf_dependency": "medium",
+    "status": "nominal"
+  }
+]

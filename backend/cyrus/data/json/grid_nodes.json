@@ -1,0 +1,74 @@
+[
+  {
+    "name": "CYRUS-NORTH-01",
+    "region": "North America",
+    "node_type": "transformer",
+    "capacity_mw": 1200,
+    "gic_vulnerability": 0.92,
+    "status": "online"
+  },
+  {
+    "name": "CYRUS-NORTH-02",
+    "region": "North America",
+    "node_type": "substation",
+    "capacity_mw": 800,
+    "gic_vulnerability": 0.74,
+    "status": "online"
+  },
+  {
+    "name": "CYRUS-EUROPE-01",
+    "region": "Europe",
+    "node_type": "transformer",
+    "capacity_mw": 950,
+    "gic_vulnerability": 0.86,
+    "status": "online"
+  },
+  {
+    "name": "CYRUS-EUROPE-02",
+    "region": "Europe",
+    "node_type": "substation",
+    "capacity_mw": 600,
+    "gic_vulnerability": 0.63,
+    "status": "online"
+  },
+  {
+    "name": "CYRUS-SCANDINAVIA-01",
+    "region": "Scandinavia",
+    "node_type": "transformer",
+    "capacity_mw": 700,
+    "gic_vulnerability": 0.95,
+    "status": "online"
+  },
+  {
+    "name": "CYRUS-SCANDINAVIA-02",
+    "region": "Scandinavia",
+    "node_type": "transmission",
+    "capacity_mw": 1500,
+    "gic_vulnerability": 0.55,
+    "status": "online"
+  },
+  {
+    "name": "CYRUS-AUSTRALIA-01",
+    "region": "Australia",
+    "node_type": "transformer",
+    "capacity_mw": 500,
+    "gic_vulnerability": 0.71,
+    "status": "online"
+  },
+  {
+    "name": "CYRUS-JAPAN-01",
+    "region": "Asia Pacific",
+    "node_type": "substation",
+    "capacity_mw": 900,
+    "gic_vulnerability": 0.68,
+    "status": "online"
+  },
+  {
+    "name": "CYRUS-JAPAN-02",
+    "region": "Asia Pacific",
+    "node_type": "transformer",
+    "capacity_mw": 1100,
+    "gic_vulnerability": 0.83,
+    "status": "online"
+  }
+]

@@ -58,30 +58,30 @@ Respond with ONLY a JSON object:
         )
 
         prompt = f"""CYRUS MISSION COMPLETE — EXECUTIVE SYNTHESIS REQUIRED
-======================================================
-Job ID: {threat.job_id}
-Severity: {threat.severity.upper()}  |  Flare class: {threat.flare_class}
-Flare probability: {threat.flare_probability:.1%}
-Peak event: {threat.peak_timestamp}
+        ======================================================
+        Job ID: {threat.job_id}
+        Severity: {threat.severity.upper()}  |  Flare class: {threat.flare_class}
+        Flare probability: {threat.flare_probability:.1%}
+        Peak event: {threat.peak_timestamp}
 
-ANALYST ASSESSMENT:
-{threat.analyst_summary}
+        ANALYST ASSESSMENT:
+        {threat.analyst_summary}
 
-SATOPS REPORT [{satops.status if satops else 'N/A'}]:
-{satops.summary if satops else 'No report received.'}
-Actions taken: {len(satops.actions_taken) if satops else 0}
+        SATOPS REPORT [{satops.status if satops else 'N/A'}]:
+        {satops.summary if satops else 'No report received.'}
+        Actions taken: {len(satops.actions_taken) if satops else 0}
 
-GRIDOPS REPORT [{gridops.status if gridops else 'N/A'}]:
-{gridops.summary if gridops else 'No report received.'}
-Actions taken: {len(gridops.actions_taken) if gridops else 0}
+        GRIDOPS REPORT [{gridops.status if gridops else 'N/A'}]:
+        {gridops.summary if gridops else 'No report received.'}
+        Actions taken: {len(gridops.actions_taken) if gridops else 0}
 
-COMMSOPS REPORT [{commsops.status if commsops else 'N/A'}]:
-{commsops.summary if commsops else 'No report received.'}
-Actions taken: {len(commsops.actions_taken) if commsops else 0}
+        COMMSOPS REPORT [{commsops.status if commsops else 'N/A'}]:
+        {commsops.summary if commsops else 'No report received.'}
+        Actions taken: {len(commsops.actions_taken) if commsops else 0}
 
-TOTAL ACTIONS ACROSS ALL TEAMS: {total_actions}
+        TOTAL ACTIONS ACROSS ALL TEAMS: {total_actions}
 
-Produce the executive brief now."""
+        Produce the executive brief now."""
 
         raw = self.invoke(prompt)
 

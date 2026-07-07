@@ -1,0 +1,52 @@
+[
+  {
+    "id": "SAT-001",
+    "name": "AURORA-LEO-1",
+    "orbit_type": "LEO",
+    "altitude_km": 420,
+    "inclination_deg": 51.6,
+    "status": "nominal",
+    "last_command": null,
+    "last_command_at": null
+  },
+  {
+    "id": "SAT-002",
+    "name": "POLAR-WATCH-1",
+    "orbit_type": "LEO",
+    "altitude_km": 780,
+    "inclination_deg": 98.7,
+    "status": "nominal",
+    "last_command": null,
+    "last_command_at": null
+  },
+  {
+    "id": "SAT-003",
+    "name": "WEATHER-NET-7",
+    "orbit_type": "LEO",
+    "altitude_km": 850,
+    "inclination_deg": 98.5,
+    "status": "nominal",
+    "last_command": null,
+    "last_command_at": null
+  },
+  {
+    "id": "SAT-004",
+    "name": "GEO-COMMS-1",
+    "orbit_type": "GEO",
+    "altitude_km": 35786,
+    "inclination_deg": 0.1,
+    "status": "nominal",
+    "last_command": null,
+    "last_command_at": null
+  },
+  {
+    "id": "SAT-005",
+    "name": "DEEP-SPACE-RELAY",
+    "orbit_type": "MEO",
+    "altitude_km": 20200,
+    "inclination_deg": 55,
+    "status": "nominal",
+    "last_command": null,
+    "last_command_at": null
+  }
+]
