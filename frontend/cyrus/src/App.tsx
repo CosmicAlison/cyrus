@@ -1,7 +1,6 @@
 import StarField from './components/background/StarField.tsx'
 import './App.css'
-import { Canvas } from '@react-three/fiber'
-import Sun from './components/solar/Sun.tsx'
+import SolarSystemScene from './components/solar/SolarSystemScene.jsx'
 
 function App() {
   return (
@@ -14,22 +13,16 @@ function App() {
       }}
     >
       <StarField />
-
-      <Canvas
-        style={{
-          position: "absolute",
-          inset: 0,
-          zIndex: 1,
-        }}
-        camera={{ position: [0, 0, 8], fov: 45 }}
-      >
-        <ambientLight intensity={0.15} />
-
-        <Sun
-          severity="moderate"
-          flareActive={false}
+        <SolarSystemScene
+        activeRegions={[
+          { lat: 12, lon: -40, intensity: 0.8 },
+          { lat: -25, lon: 60, intensity: 0.4 },
+        ]}
+        windSpeed={520}
+        windDensity={0.6}
+        kpIndex={5}
+        euvChannel="193"
         />
-      </Canvas>
     </div>
   );
 }
