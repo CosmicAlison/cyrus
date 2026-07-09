@@ -1,5 +1,6 @@
 import StarField from './components/background/StarField.tsx'
 import './App.css'
+import CommandCenter from './components/command/CommandCenter.tsx';
 import SolarSystemScene from './components/solar/SolarSystemScene.jsx'
 
 function App() {
@@ -13,7 +14,7 @@ function App() {
       }}
     >
       <StarField />
-        <SolarSystemScene
+      <SolarSystemScene
         activeRegions={[
           { lat: 12, lon: -40, intensity: 0.8 },
           { lat: -25, lon: 60, intensity: 0.4 },
@@ -23,6 +24,7 @@ function App() {
         kpIndex={5}
         euvChannel="193"
         />
+      <CommandCenter />
     </div>
   );
 }
