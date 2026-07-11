@@ -31,8 +31,8 @@ class BaseAgent(ABC):
         llm_kwargs: dict[str, Any] = {
             "model": settings.LLM_MODEL,
             "temperature": settings.LLM_TEMPERATURE,
-            "api_key": settings.FIREWORKS_API_KEY,
-            "base_url": settings.FIREWORKS_BASE_URL,
+            "api_key": settings.FIREWORKS_KEY,
+            "base_url": settings.FIREWORKS_URL,
         }
 
         self._llm = ChatOpenAI(**llm_kwargs)
