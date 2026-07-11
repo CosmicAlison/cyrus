@@ -18,23 +18,6 @@ services:
       timeout: 5s
       retries: 5
 
-  rabbitmq:
-    image: rabbitmq:3.13-management
-    restart: unless-stopped
-    environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-cyrus}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-cyrus}
-    ports:
-      - "5672:5672"
-      - "15672:15672"   # management UI
-    volumes:
-      - rabbitmq_data:/var/lib/rabbitmq
-    healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   redis:
     image: redis:7.2-alpine
     restart: unless-stopped
@@ -58,15 +41,14 @@ services:
       - "5000:5000"
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-cyrus}:${POSTGRES_PASSWORD:-cyrus}@postgres:5432/${POSTGRES_DB:-cyrus}
-      RABBITMQ_URL: amqp://${RABBITMQ_USER:-cyrus}:${RABBITMQ_PASSWORD:-cyrus}@rabbitmq:5672/
+      RABBITMQ_URL: ${RABBITMQ_URL}
       REDIS_URL: redis://:${REDIS_PASSWORD:-cyrus}@redis:6379/0
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      FIREWORKS_KEY: ${FIREWORKS_KEY}
       LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
       FLASK_ENV: ${FLASK_ENV:-production}
+      FIREWORKS_URL: ${FIREWORKS_URL}
     depends_on:
       postgres:
-        condition: service_healthy
-      rabbitmq:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -79,14 +61,10 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-cyrus}:${POSTGRES_PASSWORD:-cyrus}@postgres:5432/${POSTGRES_DB:-cyrus}
-      RABBITMQ_URL: amqp://${RABBITMQ_USER:-cyrus}:${RABBITMQ_PASSWORD:-cyrus}@rabbitmq:5672/
+      RABBITMQ_URL: ${RABBITMQ_URL}
       REDIS_URL: redis://:${REDIS_PASSWORD:-cyrus}@redis:6379/0
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
-      LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
     depends_on:
       postgres:
-        condition: service_healthy
-      rabbitmq:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -99,14 +77,10 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-cyrus}:${POSTGRES_PASSWORD:-cyrus}@postgres:5432/${POSTGRES_DB:-cyrus}
-      RABBITMQ_URL: amqp://${RABBITMQ_USER:-cyrus}:${RABBITMQ_PASSWORD:-cyrus}@rabbitmq:5672/
+      RABBITMQ_URL: ${RABBITMQ_URL}
       REDIS_URL: redis://:${REDIS_PASSWORD:-cyrus}@redis:6379/0
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
-      LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
     depends_on:
       postgres:
-        condition: service_healthy
-      rabbitmq:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -119,14 +93,10 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-cyrus}:${POSTGRES_PASSWORD:-cyrus}@postgres:5432/${POSTGRES_DB:-cyrus}
-      RABBITMQ_URL: amqp://${RABBITMQ_USER:-cyrus}:${RABBITMQ_PASSWORD:-cyrus}@rabbitmq:5672/
+      RABBITMQ_URL: ${RABBITMQ_URL}
       REDIS_URL: redis://:${REDIS_PASSWORD:-cyrus}@redis:6379/0
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
-      LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
     depends_on:
       postgres:
-        condition: service_healthy
-      rabbitmq:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -139,14 +109,10 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-cyrus}:${POSTGRES_PASSWORD:-cyrus}@postgres:5432/${POSTGRES_DB:-cyrus}
-      RABBITMQ_URL: amqp://${RABBITMQ_USER:-cyrus}:${RABBITMQ_PASSWORD:-cyrus}@rabbitmq:5672/
+      RABBITMQ_URL: ${RABBITMQ_URL}
       REDIS_URL: redis://:${REDIS_PASSWORD:-cyrus}@redis:6379/0
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
-      LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
     depends_on:
       postgres:
-        condition: service_healthy
-      rabbitmq:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -159,14 +125,10 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-cyrus}:${POSTGRES_PASSWORD:-cyrus}@postgres:5432/${POSTGRES_DB:-cyrus}
-      RABBITMQ_URL: amqp://${RABBITMQ_USER:-cyrus}:${RABBITMQ_PASSWORD:-cyrus}@rabbitmq:5672/
+      RABBITMQ_URL: ${RABBITMQ_URL}
       REDIS_URL: redis://:${REDIS_PASSWORD:-cyrus}@redis:6379/0
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
-      LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
     depends_on:
       postgres:
-        condition: service_healthy
-      rabbitmq:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -174,5 +136,4 @@ services:
 
 volumes:
   postgres_data:
-  rabbitmq_data:
   redis_data:

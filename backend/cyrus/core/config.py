@@ -9,16 +9,14 @@ class Settings:
     )
 
     # RabbitMQ
-    RABBITMQ_URL: str = os.environ.get(
-        "RABBITMQ_URL", "amqp://cyrus:cyrus@rabbitmq-1:5672/"
-    )
+    RABBITMQ_URL: str = os.environ.get("RABBITMQ_URL")
 
     # Redis
     REDIS_URL: str = os.environ.get("REDIS_URL", "redis://:cyrus@redis-1:6379/0")
 
     # LLM
-    OPENAI_API_KEY: str = os.environ.get("OPENAI_API_KEY", "")
-    OPENAI_BASE_URL: str | None = os.environ.get("OPENAI_BASE_URL")  # vLLM endpoint
+    FIREWORKS_KEY: str = os.environ.get("FIREWORKS_KEY")
+    FIREWORKS_URL: str | None = os.environ.get("FIREWORKS_URL") 
     LLM_MODEL: str = os.environ.get("LLM_MODEL", "gpt-4o-mini")
     LLM_TEMPERATURE: float = float(os.environ.get("LLM_TEMPERATURE", "0.1"))
 
