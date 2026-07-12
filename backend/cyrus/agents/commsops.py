@@ -5,7 +5,6 @@ Receives ThreatPayload, assesses HF radio blackout and radiation risk,
 and issues rerouting advisories / backup comms switches for at-risk flights.
 """
 
-import json
 import logging
 
 from agents.base_agent import BaseAgent
@@ -39,15 +38,6 @@ When given a space weather threat, you must:
    for all high-HF routes AND issue_rerouting_advisory for medium-HF polar routes.
 4. Non-polar routes with low HF dependency: no action needed unless X-class.
 
-After all actions, respond with ONLY a JSON object:
-{
-  "status": "success|partial|skipped",
-  "actions_taken": [
-    {"tool": "<tool_name>", "route_id": "<id>", "result": "<brief outcome>"}
-  ],
-  "summary": "<1-2 sentence summary>"
-}
-
 Be specific about which routes received advisories and which switched to backup comms."""
 
     def respond(self, threat: ThreatPayload) -> AgentReport:
@@ -73,22 +63,18 @@ Peak event timestamp: {threat.peak_timestamp}
 Analyst summary: {threat.analyst_summary}
 
 Assess HF blackout risk for active flight routes and issue all advisories now.
-For M/X-class events, also switch high-dependency routes to backup satellite comms."""
+For M/X-class events, also switch high-dependency routes to backup satellite comms.
+Output ONLY 2-3 sentence plain English assessment and summary
+"""
 
         raw = self.invoke(prompt)
-
-        try:
-            output = json.loads(raw.strip())
-        except json.JSONDecodeError:
-            log.warning("[commsops] Non-JSON response, wrapping as partial")
-            output = {"status": "partial", "actions_taken": [], "summary": raw[:300]}
 
         return AgentReport(
             job_id=threat.job_id,
             agent="commsops",
-            status=output.get("status", "partial"),
-            actions_taken=output.get("actions_taken", []),
-            summary=output.get("summary", ""),
+            status="success",
+            actions_taken=self.tool_actions,
+            summary=raw[:500],
             completed_at=_now(),
         )
 

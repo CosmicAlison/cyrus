@@ -75,10 +75,11 @@ def issue_rerouting_advisory(
     alternate_route: str,
 ) -> dict[str, Any]:
     """
-    Issue an HF blackout / radiation rerouting advisory for a flight route.
-    This pushes an advisory to the simulated NOTAM (Notice to Air Missions) system.
-    advisory_text: plain English description of the space weather threat and recommended action.
-    alternate_route: description of the recommended alternate routing.
+    Issue an HF blackout/radiation rerouting advisory for a flight route.
+
+    Pushes a simulated NOTAM advisory to the affected route.
+    advisory_text: explanation of the solar weather threat.
+    alternate_route: recommended alternate flight path.
     """
     with get_session() as session:
         route = session.get(FlightRoute, route_id)
@@ -90,11 +91,14 @@ def issue_rerouting_advisory(
         route.advisory = full_advisory
         route.advisory_issued_at = datetime.now(timezone.utc)
 
-    log.info("[comms_tool] Advisory issued for route %s (%s)", route_id, route.flight_number)
+        flight_number = route.flight_number
+
+    log.info("[comms_tool] Advisory issued for route %s (%s)", route_id, flight_number)
+
     return {
         "success": True,
         "route_id": route_id,
-        "flight_number": route.flight_number,
+        "flight_number": flight_number,
         "advisory": full_advisory,
         "status": "advisory_issued",
     }

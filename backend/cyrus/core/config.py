@@ -17,8 +17,8 @@ class Settings:
     # LLM
     FIREWORKS_KEY: str = os.environ.get("FIREWORKS_KEY")
     FIREWORKS_URL: str | None = os.environ.get("FIREWORKS_URL") 
-    LLM_MODEL: str = os.environ.get("LLM_MODEL", "gpt-4o-mini")
-    LLM_TEMPERATURE: float = float(os.environ.get("LLM_TEMPERATURE", "0.1"))
+    LLM_MODEL: str = os.environ.get("LLM_MODEL")
+    LLM_TEMPERATURE: float = float(os.environ.get("LLM_TEMPERATURE"))
 
     # Flask
     FLASK_ENV: str = os.environ.get("FLASK_ENV", "production")

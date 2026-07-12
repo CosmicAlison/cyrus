@@ -6,7 +6,6 @@ Receives ThreatPayload, queries the satellite registry,
 and issues safe mode / orientation / thruster commands as needed.
 """
 
-import json
 import logging
 from typing import Any
 
@@ -37,14 +36,7 @@ When given a space weather threat assessment, you must:
    - schedule_thruster_burn: to raise orbit if atmospheric_drag_risk > 0.7
 4. MEO/GEO satellites: issue safe mode if flare_class is M or X.
 
-After taking all actions, respond with ONLY a JSON object:
-{
-  "status": "success|partial|skipped",
-  "actions_taken": [
-    {"tool": "<tool_name>", "satellite_id": "<id>", "result": "<brief outcome>"}
-  ],
-  "summary": "<1-2 sentence plain English summary of actions taken>"
-}
+After taking all actions, respond with ONLY 1-2 sentence plain English summary of actions taken
 
 Be decisive. During a space weather event, speed of response is critical."""
 
@@ -74,18 +66,13 @@ Query the satellite registry and issue all appropriate protective commands now."
 
         raw = self.invoke(prompt)
 
-        try:
-            output = json.loads(raw.strip())
-        except json.JSONDecodeError:
-            log.warning("[satops] Non-JSON response, wrapping as partial")
-            output = {"status": "partial", "actions_taken": [], "summary": raw[:300]}
 
         return AgentReport(
             job_id=threat.job_id,
             agent="satops",
-            status=output.get("status", "partial"),
-            actions_taken=output.get("actions_taken", []),
-            summary=output.get("summary", ""),
+            status="success",
+            actions_taken=self.tool_actions,
+            summary=raw,
             completed_at=_now(),
         )
 

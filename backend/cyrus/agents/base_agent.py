@@ -21,7 +21,6 @@ class BaseAgent(ABC):
     Wraps a LangChain ChatOpenAI instance with:
     - System prompt definition (subclass provides)
     - Optional tool binding
-    - Structured JSON output via prompt contract
     - Action logging hook
     """
 
@@ -41,8 +40,10 @@ class BaseAgent(ABC):
         if tools:
             self._llm = self._llm.bind_tools(tools)
             self._tools = {t.name: t for t in tools}
+            
         else:
             self._tools = {}
+        self.tool_actions = []
 
         log.info(
             "Agent %s initialised (model=%s, tools=%s)",
@@ -91,6 +92,15 @@ class BaseAgent(ABC):
                 if tool_name in self._tools:
                     try:
                         result = self._tools[tool_name].invoke(tool_args)
+
+                        self.tool_actions.append(
+                            {
+                                "tool": tool_name,
+                                "args": tool_args,
+                                "result": result,
+                            }
+                        )
+
                         log.info("[%s] Tool %s → %s", self.name, tool_name, str(result)[:200])
                     except Exception as exc:
                         result = f"ERROR: {exc}"

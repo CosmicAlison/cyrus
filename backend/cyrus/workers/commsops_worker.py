@@ -49,7 +49,7 @@ class CommsOpsWorker(BaseConsumer):
                     forecast_run_id=job_id,
                     agent="commsops",
                     action_type=action.get("tool", "unknown"),
-                    description=action.get("result", ""),
+                    description=str(action.get("result", "")),
                     details=action,
                     status=report.status,
                 ))

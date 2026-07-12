@@ -6,7 +6,6 @@ synthesises them into a comprehensive executive brief, and
 produces the final ExecutiveBrief for the dashboard.
 """
 
-import json
 import logging
 
 from agents.base_agent import BaseAgent
@@ -37,12 +36,7 @@ Your brief must:
 
 Tone: authoritative, concise, factual. No jargon. Written for a senior executive,
 not a scientist. Total length: 150-250 words.
-
-Respond with ONLY a JSON object:
-{
-  "executive_brief": "<full brief text>",
-  "recommended_priority": "IMMEDIATE|MONITOR|ROUTINE"
-}"""
+"""
 
     def synthesise(
         self,
@@ -83,14 +77,7 @@ Respond with ONLY a JSON object:
 
         Produce the executive brief now."""
 
-        raw = self.invoke(prompt)
-
-        try:
-            output = json.loads(raw.strip())
-            brief_text = output["executive_brief"]
-        except (json.JSONDecodeError, KeyError):
-            log.warning("[commander] Non-JSON response, using raw output")
-            brief_text = raw[:1000]
+        brief_text = self.invoke(prompt)
 
         log.info(
             "[commander] Brief produced for job %s — %d total actions",

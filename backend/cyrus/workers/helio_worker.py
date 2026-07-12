@@ -9,7 +9,7 @@ pipeline graph rather than just Agent 1 in isolation.
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any
 
 import pika
@@ -31,9 +31,11 @@ log = logging.getLogger(__name__)
 
 class HelioWorker(BaseConsumer):
     queue = settings.QUEUE_RAW_FORECAST
-
+    
     def handle_message(self, channel: pika.channel.Channel, payload: dict[str, Any]) -> None:
         job_id = payload.get("job_id", "unknown")
+
+        _ensure_forecast_run(job_id, payload)
         log.info("Received raw forecast for job %s", job_id)
 
         # Update run status
@@ -73,6 +75,30 @@ class HelioWorker(BaseConsumer):
             _mark_run_failed(job_id, str(exc))
             raise
 
+def _ensure_forecast_run( job_id: str, payload: dict) -> None:
+        with get_session() as session:
+            existing = session.get(ForecastRun, job_id)
+
+            if existing:
+                return
+
+            now = datetime.now(timezone.utc)
+
+            run = ForecastRun(
+                id=job_id,
+                status="surya_complete",
+                forecast_start=now,
+                forecast_end=now + timedelta(hours=2),
+                rollout_steps=12,
+            )
+
+            session.add(run)
+            session.commit()
+
+            log.info(
+                "[helio_worker] Created synthetic ForecastRun %s",
+                job_id,
+            )
 
 def _persist_threat_event_placeholder(job_id: str, raw: dict) -> int:
     """Create a ThreatEvent row before agents run so we have an ID to reference."""
@@ -116,7 +142,7 @@ def _persist_results(job_id: str, threat_event_id: int, state: dict) -> None:
                     threat_event_id=threat_event_id,
                     agent=agent,
                     action_type=action.get("tool", "unknown"),
-                    description=action.get("result", ""),
+                    description=str(action.get("result", "")),
                     details=action,
                     status="success",
                 ))

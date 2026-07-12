@@ -2,75 +2,107 @@ from datetime import datetime
 from typing import Any, Literal
 from pydantic import BaseModel, Field
 
-
-class ActiveRegion(BaseModel):
-    x: int
-    y: int
-    radius_pixels: int
+SeverityLevel = Literal["low", "moderate", "high", "extreme"]
 
 
-class TimestepForecast(BaseModel):
-    timestamp: str
-    flare_probability: float = Field(ge=0.0, le=1.0)
-    estimated_flare_class: Literal["X", "M", "C", "B", "A"]
-    peak_intensity_per_channel: dict[str, float]
-    delta_intensity_per_channel: dict[str, float]
-    active_region: ActiveRegion
-    euv_integrated_flux: float = Field(ge=0.0, le=1.0)
-    magnetic_complexity: float = Field(ge=0.0)
-    solar_wind_proxy: float
+class FlareForecast(BaseModel):
+    prediction: int
+    probability: float = Field(ge=0.0, le=1.0)
+    time_input: str
+    time_target: str
+    goes_class: str
 
 
-class ForecastSummary(BaseModel):
-    max_flare_probability: float
-    peak_flare_class: Literal["X", "M", "C", "B", "A"]
-    peak_timestamp: str
-    mean_euv_flux: float
-    max_magnetic_complexity: float
+class RegionCentroid(BaseModel):
+    x: float
+    y: float
+    area_frac: float
+    disk_proximity: float
+
+
+class ARSnapshot(BaseModel):
+    timestamp_input: str
+    timestamp_target: str
+    active_region_count: int
+    centroids: list[RegionCentroid]
+    total_area_frac: float
+    dominant_region: RegionCentroid | None = None
+
+
+class EUVForecast(BaseModel):
+    time_input: str
+    time_target: str
+    integrated_flux: float
+    soft_xray_flux: float
+    thermospheric_flux: float
+    he2_flux: float
+    spectrum_mini: list[float] = Field(default_factory=list)
+
+
+class WindForecast(BaseModel):
+    time_input: str
+    time_target: str
+    speed_kms: float
+    bz_gsm: float
+    bx_gse: float
+    by_gsm: float
+    density: float
+    cached: bool = False
+
+
+class ThreatSummary(BaseModel):
+    severity: SeverityLevel
+    composite_risk: float
+    flare_probability: float
+    gic_risk: float
+    atmospheric_drag_risk: float
+    hf_blackout_risk: float
+    bz_southward: bool
+    bz_nT: float
+    wind_speed_kms: float
+    active_region_count: int
+    activate_commsops: bool
+    activate_satops: bool
+    activate_gridops: bool
 
 
 class RawForecastPayload(BaseModel):
-    """Published by surya_service → consumed by helio_worker (Agent 1)."""
+    """Published by surya_service → consumed by helio_worker (Agent 1).
+    Mirrors Aggregator.build()'s output shape directly — no adapter needed."""
     job_id: str
-    forecast_start: str
-    forecast_end: str
-    timesteps: list[TimestepForecast]
-    summary: ForecastSummary
+    solar_time: str
+    real_time: str
+    flare: FlareForecast
+    ar_now: ARSnapshot
+    ar_flare: ARSnapshot | None = None
+    euv: EUVForecast
+    wind: WindForecast
+    threat_summary: ThreatSummary
 
 
 # Agent 1 (HelioAnalyst) → cyrus.threats
 
-SeverityLevel = Literal["low", "moderate", "high", "extreme"]
-
 class ThreatPayload(BaseModel):
-    """
-    Structured threat assessment produced by Agent 1.
-    Published to cyrus.threats — fan-out to Agents 2, 3, 4.
-    """
     job_id: str
     threat_event_id: int
     severity: SeverityLevel
-    flare_class: Literal["X", "M", "C", "B", "A"]
     flare_probability: float
-
-    # Signals for downstream agents
-    euv_impact: float = Field(ge=0.0, le=1.0, description="EUV flux — CommsOps severity driver")
-    magnetic_complexity: float = Field(ge=0.0, description="Bz variance — CME / GridOps driver")
-    solar_wind_speed_proxy: float = Field(description="HMI Doppler proxy — GIC driver")
-    atmospheric_drag_risk: float = Field(ge=0.0, le=1.0, description="EUV heating — SatOps driver")
-
-    # Active region info
-    active_region_x: int
-    active_region_y: int
+    goes_class: str
+    euv_impact: float
+    magnetic_complexity: float
+    solar_wind_speed_proxy: float
+    atmospheric_drag_risk: float
+    active_region_x: float
+    active_region_y: float
     peak_timestamp: str
-
-    # Natural language context for LLM agents
-    analyst_summary: str = Field(description="Agent 1 plain-English assessment")
-
-    # Which agents should act (set by LangGraph severity routing)
+    analyst_summary: str
     activate_satops: bool
     activate_gridops: bool
     activate_commsops: bool
+
+    @property
+    def flare_class(self) -> str:
+        return self.goes_class
 
 class AgentReport(BaseModel):
     """

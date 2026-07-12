@@ -5,7 +5,6 @@ Receives ThreatPayload, assesses GIC risk across the power grid,
 and triggers load rerouting or transformer decoupling as needed.
 """
 
-import json
 import logging
 
 from agents.base_agent import BaseAgent
@@ -37,15 +36,6 @@ When given a space weather threat, you must:
 4. Do NOT decouple for low or moderate severity events — it causes outages.
    Reserve decoupling for high/extreme severity + vulnerability > 0.8 only.
 
-After all actions, respond with ONLY a JSON object:
-{
-  "status": "success|partial|skipped",
-  "actions_taken": [
-    {"tool": "<tool_name>", "node_id": "<id>", "result": "<brief outcome>"}
-  ],
-  "summary": "<1-2 sentence summary>"
-}
-
 A cascading grid failure is worse than a controlled brownout. Protect transformers first."""
 
     def respond(self, threat: ThreatPayload) -> AgentReport:
@@ -72,22 +62,18 @@ Peak event timestamp: {threat.peak_timestamp}
 Analyst summary: {threat.analyst_summary}
 
 Assess GIC risk across the grid and issue all protective commands now.
-Remember: decouple only transformers with vulnerability > 0.8 under high/extreme severity."""
+Remember: decouple only transformers with vulnerability > 0.8 under high/extreme severity.
+Output ONLY 2-3 sentence plain English assessment and summary
+"""
 
-        raw = self.invoke(prompt)
-
-        try:
-            output = json.loads(raw.strip())
-        except json.JSONDecodeError:
-            log.warning("[gridops] Non-JSON response, wrapping as partial")
-            output = {"status": "partial", "actions_taken": [], "summary": raw[:300]}
+        output = self.invoke(prompt)
 
         return AgentReport(
             job_id=threat.job_id,
             agent="gridops",
-            status=output.get("status", "partial"),
-            actions_taken=output.get("actions_taken", []),
-            summary=output.get("summary", ""),
+            status="success",
+            actions_taken=self.tool_actions,
+            summary=output,
             completed_at=_now(),
         )
 
