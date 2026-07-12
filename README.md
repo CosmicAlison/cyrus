@@ -125,11 +125,47 @@ No other third-party APIs, model providers, or paid services are used.
 
 ```bash
 cd backend/surya_service
-pip install -r requirements.txt --break-system-packages
+
+git clone --depth 1 https://github.com/NASA-IMPACT/Surya.git /surya
+
+#Not if running this service in a notebook environment where docker is not installed and
+#Pytorch and Cuda are preconfigured you will need to tweek some of the config variables
+
+cd Surya/
+pip install -e . --no-deps --ignore-requires-python
+
+pip install \
+einops \
+timm \
+hdf5plugin \
+numpy \
+pandas \
+xarray \
+packaging \
+pyyaml \
+numba \
+scikit-image \
+sunpy \
+huggingface-hub \
+peft \
+wandb \
+matplotlib \
+h5netcdf \
+pytest \
+mpl-animators \
+ipykernel \
+hf-transfer \
+awscli
 
 # Download model weights + task-specific datasets (per task)
 cd Surya/downstream_examples/solar_flare_forcasting && bash download_data.sh && cd ../../..
+
 cd Surya/downstream_examples/ar_segmentation && bash download_data.sh && cd ../../..
+
+
+#go back into main surya_service directory
+pip install -r requirements.txt
+pip install --force-reinstall --no-cache-dir numpy scikit-image
 
 # Configure
 cp .env.example .env
@@ -157,7 +193,6 @@ npm install
 npm run dev
 ```
 
-Or use the deployed demo: **[Vercel link]**
 
 ---
 
