@@ -55,13 +55,35 @@ class HelioWorker(BaseConsumer):
                 threat_event_id=threat_event_id,
             )
 
-            _persist_results(job_id, threat_event_id, final_state)
+            brief = final_state.get("executive_brief")
+            def bget(key, default=None):
+                return brief.get(key, default) if isinstance(brief, dict) else getattr(brief, key, default)
+
+            dominant = payload["ar_now"].get("dominant_region") or {"x": 0, "y": 0}
+            lat, lon = to_lat_lon(dominant["x"], dominant["y"])
+
+            active_regions = [
+                {
+                    "lat": to_lat_lon(c["x"], c["y"])[0],
+                    "lon": to_lat_lon(c["x"], c["y"])[1],
+                    "intensity": min(1.0, c.get("area_frac", 0) * 5),  # tune scale to taste
+                }
+                for c in payload["ar_now"].get("centroids", [])
+            ]
 
             redis_client.set_run_status(job_id, "complete")
             redis_client.publish_dashboard_event("pipeline_complete", {
                 "job_id": job_id,
-                "executive_brief": final_state.get("executive_brief"),
-                "severity": final_state.get("severity"),
+                "severity": bget("severity", payload["threat_summary"]["severity"]),
+                "flare_class": bget("flare_class", payload["flare"]["goes_class"]),
+                "flare_probability": payload["flare"]["probability"],
+                "total_actions": bget("total_actions", 0),
+                "executive_brief": bget("executive_brief", ""),
+                "active_region_lat": lat,
+                "active_region_lon": lon,
+                "active_regions": active_regions,
+                "wind_speed": payload["wind"]["speed_kms"],
+                "wind_density": payload["wind"]["density"],
             })
             log.info("Pipeline complete for job %s", job_id)
 
@@ -74,6 +96,17 @@ class HelioWorker(BaseConsumer):
             })
             _mark_run_failed(job_id, str(exc))
             raise
+
+IMG_SIZE = 4096
+
+def to_lat_lon(x: float, y: float) -> tuple[float, float]:
+    """Rough disk-projected coords → approximate heliographic lat/lon.
+    Accepts either normalized [-1,1] or raw pixel coords (auto-detected)."""
+    if abs(x) > 1 or abs(y) > 1:
+        # pixel space -> normalize first
+        x = (x / IMG_SIZE) * 2 - 1
+        y = (y / IMG_SIZE) * 2 - 1
+    return round(y * 90, 1), round(x * 90, 1)
 
 def _ensure_forecast_run( job_id: str, payload: dict) -> None:
         with get_session() as session:
