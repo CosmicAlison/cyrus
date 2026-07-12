@@ -32,7 +32,8 @@ class BaseAgent(ABC):
             "model": settings.LLM_MODEL,
             "temperature": settings.LLM_TEMPERATURE,
             "api_key": settings.FIREWORKS_KEY,
-            "base_url": settings.FIREWORKS_URL,
+            "base_url": "https://api.fireworks.ai/inference/v1",
+            "max_tokens": 1000,
         }
 
         self._llm = ChatOpenAI(**llm_kwargs)

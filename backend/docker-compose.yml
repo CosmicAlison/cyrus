@@ -44,7 +44,8 @@ services:
       RABBITMQ_URL: ${RABBITMQ_URL}
       REDIS_URL: redis://:${REDIS_PASSWORD:-cyrus}@redis:6379/0
       FIREWORKS_KEY: ${FIREWORKS_KEY}
-      LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
+      LLM_MODEL: ${LLM_MODEL}
+      LLM_TEMPERATURE: ${LLM_TEMPERATURE}
       FLASK_ENV: ${FLASK_ENV:-production}
       FIREWORKS_URL: ${FIREWORKS_URL}
     depends_on:
@@ -63,6 +64,10 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-cyrus}:${POSTGRES_PASSWORD:-cyrus}@postgres:5432/${POSTGRES_DB:-cyrus}
       RABBITMQ_URL: ${RABBITMQ_URL}
       REDIS_URL: redis://:${REDIS_PASSWORD:-cyrus}@redis:6379/0
+      FIREWORKS_KEY: ${FIREWORKS_KEY}
+      FIREWORKS_URL: ${FIREWORKS_URL}
+      LLM_MODEL: ${LLM_MODEL}
+      LLM_TEMPERATURE: ${LLM_TEMPERATURE}
     depends_on:
       postgres:
         condition: service_healthy
@@ -79,6 +84,10 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-cyrus}:${POSTGRES_PASSWORD:-cyrus}@postgres:5432/${POSTGRES_DB:-cyrus}
       RABBITMQ_URL: ${RABBITMQ_URL}
       REDIS_URL: redis://:${REDIS_PASSWORD:-cyrus}@redis:6379/0
+      FIREWORKS_KEY: ${FIREWORKS_KEY}
+      FIREWORKS_URL: ${FIREWORKS_URL}
+      LLM_MODEL: ${LLM_MODEL}
+      LLM_TEMPERATURE: ${LLM_TEMPERATURE}
     depends_on:
       postgres:
         condition: service_healthy
@@ -95,6 +104,10 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-cyrus}:${POSTGRES_PASSWORD:-cyrus}@postgres:5432/${POSTGRES_DB:-cyrus}
       RABBITMQ_URL: ${RABBITMQ_URL}
       REDIS_URL: redis://:${REDIS_PASSWORD:-cyrus}@redis:6379/0
+      FIREWORKS_KEY: ${FIREWORKS_KEY}
+      FIREWORKS_URL: ${FIREWORKS_URL}
+      LLM_MODEL: ${LLM_MODEL}
+      LLM_TEMPERATURE: ${LLM_TEMPERATURE}
     depends_on:
       postgres:
         condition: service_healthy
@@ -111,6 +124,10 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-cyrus}:${POSTGRES_PASSWORD:-cyrus}@postgres:5432/${POSTGRES_DB:-cyrus}
       RABBITMQ_URL: ${RABBITMQ_URL}
       REDIS_URL: redis://:${REDIS_PASSWORD:-cyrus}@redis:6379/0
+      FIREWORKS_KEY: ${FIREWORKS_KEY}
+      FIREWORKS_URL: ${FIREWORKS_URL}
+      LLM_MODEL: ${LLM_MODEL}
+      LLM_TEMPERATURE: ${LLM_TEMPERATURE}
     depends_on:
       postgres:
         condition: service_healthy
@@ -126,6 +143,10 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-cyrus}:${POSTGRES_PASSWORD:-cyrus}@postgres:5432/${POSTGRES_DB:-cyrus}
       RABBITMQ_URL: ${RABBITMQ_URL}
+      FIREWORKS_KEY: ${FIREWORKS_KEY}
+      FIREWORKS_URL: ${FIREWORKS_URL}
+      LLM_MODEL: ${LLM_MODEL}
+      LLM_TEMPERATURE: ${LLM_TEMPERATURE}
       REDIS_URL: redis://:${REDIS_PASSWORD:-cyrus}@redis:6379/0
     depends_on:
       postgres:
