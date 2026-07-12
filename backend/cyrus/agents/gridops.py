@@ -63,7 +63,12 @@ Analyst summary: {threat.analyst_summary}
 
 Assess GIC risk across the grid and issue all protective commands now.
 Remember: decouple only transformers with vulnerability > 0.8 under high/extreme severity.
-Output ONLY 2-3 sentence plain English assessment and summary
+Output ONLY 1-2 sentence plain English summary of actions you took
+
+Write in clean plain English prose only. Do NOT use markdown formatting —
+no asterisks, no bold/italic markers, no bullet points, no headers, no numbered lists.
+Write in short, clear paragraphs a human would read on a dashboard, as if briefing
+an executive verbally.
 """
 
         output = self.invoke(prompt)

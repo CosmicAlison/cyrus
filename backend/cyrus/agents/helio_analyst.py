@@ -26,7 +26,7 @@ You receive a pre-computed threat assessment from the Surya Foundation Model pip
 write a concise plain-English analyst summary for the executive dashboard. You may override
 the pre-computed severity only if the raw signals clearly warrant it.
 
-Output ONLY 2-3 sentence plain English assessment and summary
+Output ONLY 1-2 sentence plain English summary of actions you took
 """
 
     def analyse(self, raw_payload: dict[str, Any], threat_event_id: int) -> ThreatPayload:

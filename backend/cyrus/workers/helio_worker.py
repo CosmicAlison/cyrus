@@ -84,6 +84,7 @@ class HelioWorker(BaseConsumer):
                 "active_regions": active_regions,
                 "wind_speed": payload["wind"]["speed_kms"],
                 "wind_density": payload["wind"]["density"],
+                "forecast_target_time": payload["flare"]["time_target"]
             })
             log.info("Pipeline complete for job %s", job_id)
 
@@ -106,7 +107,7 @@ def to_lat_lon(x: float, y: float) -> tuple[float, float]:
         # pixel space -> normalize first
         x = (x / IMG_SIZE) * 2 - 1
         y = (y / IMG_SIZE) * 2 - 1
-    return round(y * 90, 1), round(x * 90, 1)
+    return round(y * 50, 1), round(x * 50, 1)
 
 def _ensure_forecast_run( job_id: str, payload: dict) -> None:
         with get_session() as session:

@@ -64,7 +64,12 @@ Analyst summary: {threat.analyst_summary}
 
 Assess HF blackout risk for active flight routes and issue all advisories now.
 For M/X-class events, also switch high-dependency routes to backup satellite comms.
-Output ONLY 2-3 sentence plain English assessment and summary
+Output ONLY 1-2 sentence plain English summary of actions you took
+
+Write in clean plain English prose only. Do NOT use markdown formatting —
+no asterisks, no bold/italic markers, no bullet points, no headers, no numbered lists.
+Write in short, clear paragraphs a human would read on a dashboard, as if briefing
+an executive verbally.
 """
 
         raw = self.invoke(prompt)

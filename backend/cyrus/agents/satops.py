@@ -1,5 +1,5 @@
 """
-agents/satops.py
+
 Agent 2 — SatOps Engineer.
 
 Receives ThreatPayload, queries the satellite registry,
@@ -28,17 +28,26 @@ class SatOpsAgent(BaseAgent):
 You manage a registry of Low Earth Orbit (LEO), MEO, and GEO satellites.
 
 When given a space weather threat assessment, you must:
-1. Query the satellite registry to understand which assets are at risk.
-2. Prioritise LEO satellites — they face the greatest atmospheric drag risk from EUV heating.
-3. Issue appropriate commands using your tools:
-   - issue_safe_mode_command: for all LEO satellites when flare_probability > 0.45
-   - adjust_orientation: to minimise drag profile (drag_minimise attitude)
-   - schedule_thruster_burn: to raise orbit if atmospheric_drag_risk > 0.7
-4. MEO/GEO satellites: issue safe mode if flare_class is M or X.
+- Prioritise LEO satellites — they face the greatest atmospheric drag risk from EUV heating.
+- issue_safe_mode_command: for all LEO satellites when flare_probability > 0.45
+- adjust_orientation: to minimise drag profile (drag_minimise attitude)
+- schedule_thruster_burn: to raise orbit if atmospheric_drag_risk > 0.7
+- MEO/GEO satellites: issue safe mode if flare_class is M or X.
+
+You can query satellite status for the above actions 
+
+Issue commands one satellite at a time — call one tool, wait for its result,
+then proceed to the next action. Do not attempt to batch multiple tool calls
+in a single response.
 
 After taking all actions, respond with ONLY 1-2 sentence plain English summary of actions taken
 
-Be decisive. During a space weather event, speed of response is critical."""
+Be decisive. During a space weather event, speed of response is critical.
+
+Write in clean plain English prose only. Do NOT use markdown formatting —
+no asterisks, no bold/italic markers, no bullet points, no headers, no numbered lists.
+Write in short, clear paragraphs a human would read on a dashboard, as if briefing
+an executive verbally."""
 
     def respond(self, threat: ThreatPayload) -> AgentReport:
         if not threat.activate_satops:

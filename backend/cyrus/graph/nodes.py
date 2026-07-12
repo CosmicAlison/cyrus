@@ -14,6 +14,7 @@ from agents.gridops import GridOpsAgent
 from agents.commsops import CommsOpsAgent
 from agents.commander import CommanderAgent
 from core.schemas import ThreatPayload, AgentReport
+from cache import redis_client
 
 log = logging.getLogger(__name__)
 
@@ -97,7 +98,19 @@ def satops_node(state: dict[str, Any]) -> dict[str, Any]:
     log.info("[graph] satops_node running")
     try:
         threat = ThreatPayload.model_validate(state["threat_payload"])
+        redis_client.publish_dashboard_event("agent_started", {
+            "job_id": threat.job_id,
+            "agent": "satops",
+            "message": "SatOps engineer assessing satellite risk...",
+        })
         report = get_satops().respond(threat)
+        redis_client.publish_dashboard_event("agent_complete", {
+            "job_id": threat.job_id,
+            "agent": "satops",
+            "status": report.status,
+            "message": report.summary,
+            "actions_count": len(report.actions_taken),
+        })
         return {"satops_report": report.model_dump()}
     except Exception as exc:
         log.error("[graph] satops_node failed: %s", exc)
@@ -115,7 +128,19 @@ def gridops_node(state: dict[str, Any]) -> dict[str, Any]:
     log.info("[graph] gridops_node running")
     try:
         threat = ThreatPayload.model_validate(state["threat_payload"])
+        redis_client.publish_dashboard_event("agent_started", {
+            "job_id": threat.job_id,
+            "agent": "gridops",
+            "message": "GridOps controller assessing GIC risk across the power grid...",
+        })
         report = get_gridops().respond(threat)
+        redis_client.publish_dashboard_event("agent_complete", {
+            "job_id": threat.job_id,
+            "agent": "gridops",
+            "status": report.status,
+            "message": report.summary,
+            "actions_count": len(report.actions_taken),
+        })
         return {"gridops_report": report.model_dump()}
     except Exception as exc:
         log.error("[graph] gridops_node failed: %s", exc)
@@ -133,7 +158,19 @@ def commsops_node(state: dict[str, Any]) -> dict[str, Any]:
     log.info("[graph] commsops_node running")
     try:
         threat = ThreatPayload.model_validate(state["threat_payload"])
+        redis_client.publish_dashboard_event("agent_started", {
+            "job_id": threat.job_id,
+            "agent": "commsops",
+            "message": "CommsOps specialist assessing HF blackout and radiation risk...",
+        })
         report = get_commsops().respond(threat)
+        redis_client.publish_dashboard_event("agent_complete", {
+            "job_id": threat.job_id,
+            "agent": "commsops",
+            "status": report.status,
+            "message": report.summary,
+            "actions_count": len(report.actions_taken),
+        })
         return {"commsops_report": report.model_dump()}
     except Exception as exc:
         log.error("[graph] commsops_node failed: %s", exc)
@@ -169,6 +206,12 @@ def commander_node(state: dict[str, Any]) -> dict[str, Any]:
 
 def _error_report(agent: str, job_id: str, error: str) -> dict[str, Any]:
     from datetime import datetime, timezone
+
+    redis_client.publish_dashboard_event("agent_error", {
+        "job_id": job_id,
+        "agent": agent,
+        "error": error,
+    })
     return {
         "job_id": job_id,
         "agent": agent,
