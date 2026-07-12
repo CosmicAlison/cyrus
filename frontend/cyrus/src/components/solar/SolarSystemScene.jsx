@@ -1,11 +1,11 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { createSun } from './Sun';
 import { createSolarWind } from './SolarWind';
 import { createEUVHalo } from './EUVHalo';
 import { createCMEBurst } from './CMEBurst';
 import { createKpDial } from './KpDial';
-
+import { useCyrusStream } from '../../hooks/useCyrusStream.tsx';
 /**
  * SolarSystemScene
  * Drop this into your dashboard on top of / alongside your existing night-sky

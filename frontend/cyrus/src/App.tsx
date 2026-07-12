@@ -4,20 +4,25 @@ import CommandCenter from './components/command/CommandCenter.tsx';
 import SolarSystemScene from './components/solar/SolarSystemScene.jsx'
 import { useCyrusStream } from './hooks/useCyrusStream.tsx';
 import { useState, useEffect} from 'react';
+import SolarInfoOverlay from './components/solar/SolarInfoOverlay.tsx';
 
 function App() {
-  const events = useCyrusStream("mock-x-flare-test-001");
+  const apiUrl = import.meta.env.VITE_API_URL;
+  const events = useCyrusStream("mock-x-flare-test-001", apiUrl);
   const [solarState, setSolarState] = useState({
-    activeRegions: [[
-          { lat: 12, lon: -40, intensity: 0.8 },
-          { lat: -25, lon: 60, intensity: 0.4 },
-        ]],
+    activeRegions: [
+          //{ lat: 12, lon: -40, intensity: 0.8 },
+          //{ lat: -25, lon: 60, intensity: 0.4 },
+        ],
     euvChannel:"all",
-    windSpeed: 420,
+    windSpeed: 120,
     windDensity: 0.5,
     kpIndex: 5,
     flareEvent: null,
-    cmeEvent: null
+    cmeEvent: null,
+    executiveBrief: null as string | null,
+    forecastTargetTime:null,
+    solarTime:null
   });
 
   useEffect(() => {
@@ -66,9 +71,12 @@ function App() {
           speed: 1200,
           key: Date.now()
         },
-
+        forecastTargetTime: event.data.forecast_target_time ?? prev.forecastTargetTime,
+        solarTime: event.data.solar_time ?? prev.solarTime,
+        executiveBrief: event.data.executive_brief ?? prev.executiveBrief,
         kpIndex: strength > 0.8 ? 8 : 5
       }));
+
     }
 
   }, [events]);
@@ -86,7 +94,13 @@ function App() {
       <SolarSystemScene
         {...solarState}
         />
-      <CommandCenter />
+      <SolarInfoOverlay
+        windSpeed={solarState.windSpeed}
+        windDensity={solarState.windDensity}
+        kpIndex={solarState.kpIndex}
+        euvChannel={solarState.euvChannel}
+      />
+      <CommandCenter events={events} executiveBrief={solarState.executiveBrief} solarTime={solarState.solarTime} forecastTargetTime={solarState.forecastTargetTime} />
     </div>
   );
 }
