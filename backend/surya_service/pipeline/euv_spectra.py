@@ -3,29 +3,8 @@ EUV Spectra Prediction inference pipeline.
 
 Task dir:  downstream_examples/euv_spectra_prediction/
 Weights:   assets/euv_spectra_weights.pth (nasa-ibm-ai4science/euv_spectra_surya)
-Model:     HelioSpectformer1D (different head from AR — 1D spectral output)
+Model:     HelioSpectformer1D — 1D spectral output, different head from AR's 2D.
 
-From tutorial:
-  - imports: run_inference, create_spectrum_plots (no infer_single_sample exposed)
-  - Dataset: NetCDF with train_time/val_time/test_time + train_spectra/val_spectra/test_spectra
-  - Output: 1343-dim continuous spectrum vector [0,1] normalised
-  - Model only trains 5 params: cls_token, linear.weight/bias, unembed.weight/bias
-  - R²=0.985, Spectral correlation=0.994 on test set
-
-We hook into the model directly post-load rather than using run_inference
-(which only prints and saves PNG, doesn't return the array).
-
-Output dict:
-  {
-    "time_input":          str,
-    "time_target":         str,
-    "spectrum":            list[float],   # 1343 values
-    "integrated_flux":     float,         # mean across all bins
-    "soft_xray_flux":      float,         # mean bins ~6.5-15nm (CommsOps driver)
-    "thermospheric_flux":  float,         # mean bins ~17-30nm  (SatOps driver)
-    "he2_flux":            float,         # ~30.4nm bin         (ionospheric)
-    "spectrum_mini":       list[float],   # 50-point downsample for dashboard sparkline
-  }
 """
 
 import logging
@@ -35,7 +14,7 @@ from typing import Any
 
 import numpy as np
 
-from pipeline.base import BaseInferencePipeline, _utc
+from pipeline.base import BaseInferencePipeline
 
 log = logging.getLogger(__name__)
 
@@ -43,19 +22,30 @@ CHECKPOINT = "assets/euv_spectra_weights.pth"
 
 # Wavelength axis: 1343 bins linearly spaced from 6.5 to 33.3 nm
 _WAVELENGTHS = np.linspace(6.5, 33.3, 1343)
-
-# Bin index ranges for derived signals
-# soft X-ray: 6.5–15 nm → roughly bins 0–430
 _SXR_BINS   = (_WAVELENGTHS <= 15.0)
-# thermospheric EUV: 17–30 nm → roughly bins 490–1190
 _THERM_BINS = (_WAVELENGTHS >= 17.0) & (_WAVELENGTHS <= 30.0)
-# He II 30.4 nm ± 0.5 nm
 _HE2_BINS   = (_WAVELENGTHS >= 29.9) & (_WAVELENGTHS <= 30.9)
 
 
 class EUVSpectraPipeline(BaseInferencePipeline):
     task_dir    = "euv_spectra_prediction"
     result_type = "euv_spectra"
+
+    dataset_class_name = "EVEDSDataset"
+    index_path_key      = "infer_data_path"
+    # UNVERIFIED — confirm against this task's own config/reference infer.py
+    rollout_steps = 0
+
+    extra_dataset_kwargs = {
+        "ds_eve_index_path": "infer_solar_data_path",
+        # If config_infer.yaml doesn't set these explicitly, EVEDSDataset
+        # falls back to its own constructor defaults (ds_time_column=None,
+        # ds_match_direction="forward") — verify that's actually correct
+        # before relying on it. Add them here once confirmed, e.g.:
+        # "ds_time_column": "eve_time_column_key",
+        # "ds_time_tolerance": "eve_time_tolerance_key",
+        # "ds_match_direction": "eve_match_direction_key",
+    }
 
     def _load_model(self) -> None:
         import torch
@@ -64,50 +54,33 @@ class EUVSpectraPipeline(BaseInferencePipeline):
 
         self._config = self._load_config("config_infer.yaml")
 
-        # HelioSpectformer1D — different from the 2D AR model
-        from infer import load_model
+        infer_module = self._import_task_module()
         checkpoint_path = str(self._task_path / CHECKPOINT)
 
-        self._model = load_model(
+        self._model = infer_module.load_model(
             config=self._config,
             checkpoint_path=checkpoint_path,
             device=torch.device(self.device),
         )
         self._model.eval()
-        log.info("[euv_spectra] model loaded — output dim: 1343")
+        log.info("[euv_spectra] model loaded - output dim: 1343")
 
     def _load_timestamp_index(self) -> list[datetime]:
-        """
-        EUV dataset is a NetCDF file with test_time variable.
-        config["data"] should reference the NetCDF path.
-        """
-        data_cfg = self._config.get("data", {})
-        nc_path  = (
-            data_cfg.get("data_path")
-            or data_cfg.get("netcdf_path")
-            or data_cfg.get("test_data_path")
-        )
-
+        nc_path = self._config["data"].get("infer_data_path")
         if not nc_path:
-            candidates = list((self._task_path / "assets").rglob("*.nc"))
-            nc_path    = str(candidates[0]) if candidates else None
-
-        if not nc_path:
-            log.warning("[euv_spectra] no NetCDF index found")
+            log.warning("[euv_spectra] no infer_data_path in config")
             return []
 
-        full = Path(nc_path) if Path(nc_path).is_absolute() \
-               else self._task_path / nc_path
-
-        # EUV NetCDF stores test_time separately
-        return self._index_from_netcdf_euv(str(full))
+        suffix = Path(nc_path).suffix
+        if suffix == ".csv":
+            return self._index_from_csv(nc_path, col="timestep")
+        return self._index_from_netcdf_euv(nc_path)
 
     def _index_from_netcdf_euv(self, nc_path: str) -> list[datetime]:
-        """EUV dataset has test_time, val_time, train_time variables."""
+        """EUV dataset may store test_time / val_time / time variables."""
         try:
             import netCDF4 as nc4
             ds = nc4.Dataset(nc_path)
-            # Try test_time first, then val_time
             for var in ("test_time", "val_time", "time"):
                 if var in ds.variables:
                     raw = nc4.num2date(ds[var][:], ds[var].units)
@@ -137,10 +110,10 @@ class EUVSpectraPipeline(BaseInferencePipeline):
                     dtype=self._config["dtype"],
                     enabled="cuda" in self.device,
                 ):
-                    output = self._model(batch)  # (B, 1343)
+                    output = self._model(batch)
 
-                spectrum = output[0].cpu().float().numpy()  # (1343,)
-                # Clip to [0,1] — model trained on log-normalised values
+                # Cast to float32 before .numpy() — same bfloat16 rule as AR.
+                spectrum = output[0].to(torch.float32).cpu().numpy()
                 spectrum = np.clip(spectrum, 0.0, 1.0)
 
                 ts_input  = _extract_ts(metadata, "timestamps_input",   0)
@@ -151,18 +124,14 @@ class EUVSpectraPipeline(BaseInferencePipeline):
         return _empty_euv_result()
 
 
-# ── Signal extraction ─────────────────────────────────────────────────────────
-
-def _build_result(spectrum: np.ndarray,
-                  ts_input: str, ts_target: str) -> dict[str, Any]:
+def _build_result(spectrum: np.ndarray, ts_input: str, ts_target: str) -> dict[str, Any]:
     integrated    = float(spectrum.mean())
     soft_xray     = float(spectrum[_SXR_BINS].mean())   if _SXR_BINS.any()   else 0.0
     thermospheric = float(spectrum[_THERM_BINS].mean())  if _THERM_BINS.any() else 0.0
     he2           = float(spectrum[_HE2_BINS].mean())    if _HE2_BINS.any()   else 0.0
 
-    # Downsample to 50 points for dashboard sparkline
-    indices   = np.linspace(0, len(spectrum) - 1, 50, dtype=int)
-    mini      = spectrum[indices].tolist()
+    indices = np.linspace(0, len(spectrum) - 1, 50, dtype=int)
+    mini    = spectrum[indices].tolist()
 
     return {
         "time_input":         ts_input,

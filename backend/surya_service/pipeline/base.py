@@ -1,20 +1,11 @@
 """
 Abstract base for all four Surya downstream inference pipelines.
-
-Key facts learned from actual infer.py source (ar_segmentation):
-  - Dataset is HelioNetCDFDataset, indexed by a NetCDF/CSV index file
-  - Dataloader uses random_ids = torch.randperm — we override with fixed seed
-    and a deterministic index derived from the solar clock timestamp
-  - metadata dict contains timestamps_input / timestamps_targets as numpy datetime64
-  - Models are LoRA-wrapped via PEFT on top of the 366M base weights
-  - All tasks share the same config loading pattern:
-      config = yaml.safe_load(config_infer.yaml)
-      config["data"]["scalers"] = yaml.safe_load(scalers_path)
-      config["dtype"] = torch.float32 | float16 | bfloat16
 """
 
 import logging
+import os
 import sys
+import importlib.util
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone
 from pathlib import Path
@@ -22,12 +13,39 @@ from typing import Any
 
 log = logging.getLogger(__name__)
 
-SURYA_REPO = Path("/surya")
+# NOTE: verify this matches your actual deployment path — during debugging
+# this was /workspace/cyrus/backend/surya_service/Surya, not /surya.
+# Override via env var so it doesn't need another code edit if it moves again.
+SURYA_REPO = Path(os.environ.get("SURYA_REPO_PATH", "/surya"))
 
 
 class BaseInferencePipeline(ABC):
-    task_dir:    str   # subdir under downstream_examples/
-    result_type: str   # human label for logging
+    task_dir:    str    # subdir under downstream_examples/
+    result_type: str    # human label for logging
+
+    # ---- Per-pipeline overrides — set these on each subclass ----
+    # Name of the task-specific Dataset subclass to use (e.g. "SolarFlareDataset").
+    # Leave None to use the generic HelioNetCDFDataset directly (this is what
+    # ar_segmentation's own reference infer.py does).
+    dataset_class_name: str | None = None
+
+    # Extra constructor kwargs the task-specific Dataset subclass needs,
+    # mapped from {constructor_kwarg_name: config["data"] key}.
+    # e.g. flare needs {"flare_index_path": "flare_data_path"}
+    extra_dataset_kwargs: dict[str, str] = {}
+
+    # Explicit config["data"] key to use for index_path. If None, falls back
+    # to the generic "{data_type}_data_path" / "valid_data_path" chain.
+    # EUV needed this set explicitly to "infer_data_path" — its config
+    # doesn't use "valid_data_path" at all.
+    index_path_key: str | None = None
+
+    # rollout_steps passed to the Dataset constructor. This is NOT universal —
+    # flare needs 0 (single-step +60min forecast), ar_segmentation's own
+    # reference infer.py hardcodes 1. Get this wrong and filter_valid_indices()
+    # silently requires timesteps that don't exist, producing an EMPTY
+    # valid_indices list with no obvious error (IndexError way downstream).
+    rollout_steps: int = 0
 
     def __init__(self, device: str = "cpu") -> None:
         self.device      = device
@@ -37,7 +55,6 @@ class BaseInferencePipeline(ABC):
         self._scalers    = None
         self._ts_index   = None   # sorted list[datetime] — loaded once
 
-        # Make the task directory importable ("from infer import ...")
         task_str = str(self._task_path)
         if task_str not in sys.path:
             sys.path.insert(0, task_str)
@@ -46,7 +63,7 @@ class BaseInferencePipeline(ABC):
         self._load_model()
         log.info("[%s] ready", self.result_type)
 
-    # ── Abstract interface ────────────────────────────────────────────────────
+    # ── Abstract interface ────────────────────────────────────────────────
 
     @abstractmethod
     def _load_model(self) -> None:
@@ -61,12 +78,11 @@ class BaseInferencePipeline(ABC):
         """
         ...
 
-    @abstractmethod
     def _run_at_index(self, sample_idx: int) -> dict[str, Any]:
         """Run inference on sample at position sample_idx. Return raw result dict."""
-        ...
+        raise NotImplementedError
 
-    # ── Public entry point ────────────────────────────────────────────────────
+    # ── Public entry point ────────────────────────────────────────────────
 
     def infer(self, solar_dt: datetime) -> dict[str, Any]:
         """
@@ -77,16 +93,16 @@ class BaseInferencePipeline(ABC):
         if self._ts_index is None:
             self._ts_index = self._load_timestamp_index()
             log.info(
-                "[%s] timestamp index: %d entries (%s → %s)",
+                "[%s] timestamp index: %d entries (%s -> %s)",
                 self.result_type, len(self._ts_index),
                 self._ts_index[0].date()  if self._ts_index else "?",
                 self._ts_index[-1].date() if self._ts_index else "?",
             )
 
-        idx      = self._closest_index(solar_dt)
-        matched  = self._ts_index[idx] if self._ts_index else solar_dt
+        idx     = self._closest_index(solar_dt)
+        matched = self._ts_index[idx] if self._ts_index else solar_dt
 
-        log.debug("[%s] solar_dt=%s → idx=%d matched=%s",
+        log.debug("[%s] solar_dt=%s -> idx=%d matched=%s",
                   self.result_type, solar_dt.isoformat(), idx, matched.isoformat())
 
         result = self._run_at_index(idx)
@@ -95,7 +111,7 @@ class BaseInferencePipeline(ABC):
         result["_matched_solar_dt"]   = matched.isoformat()
         return result
 
-    # ── Shared helpers ────────────────────────────────────────────────────────
+    # ── Shared helpers ───────────────────────────────────────────────────
 
     def _closest_index(self, target: datetime) -> int:
         """Binary search on sorted timestamp index."""
@@ -114,15 +130,49 @@ class BaseInferencePipeline(ABC):
             else:
                 hi = mid
 
-        # Compare both neighbours
         if lo > 0:
             if abs((_utc(index[lo - 1]) - target).total_seconds()) < \
                abs((_utc(index[lo])     - target).total_seconds()):
                 return lo - 1
         return lo
 
+    def _import_task_module(self, filename: str = "infer.py"):
+        """
+        Load this task's infer.py (or another file) with its sibling modules
+        (models.py, dataset.py, finetune.py) pre-registered in sys.modules
+        under their literal bare names FIRST. This guarantees any bare
+        `from dataset import X` / `from finetune import Y` inside infer.py —
+        or inside our own code afterward — resolves to THIS task's files,
+        regardless of what another pipeline loaded earlier and regardless
+        of sys.path search order.
+        """
+        task_path = str(self._task_path)
+        if task_path not in sys.path:
+            sys.path.insert(0, task_path)
+
+        for name in ("models", "dataset", "finetune"):
+            file_path = self._task_path / f"{name}.py"
+            if not file_path.exists():
+                sys.modules.pop(name, None)
+                continue
+            spec = importlib.util.spec_from_file_location(name, file_path)
+            module = importlib.util.module_from_spec(spec)
+            sys.modules[name] = module
+            spec.loader.exec_module(module)
+
+        cache_key = f"{self.task_dir}_{Path(filename).stem}"
+        if cache_key in sys.modules:
+            del sys.modules[cache_key]
+
+        mod_path = self._task_path / filename
+        spec = importlib.util.spec_from_file_location(cache_key, mod_path)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[cache_key] = module
+        spec.loader.exec_module(module)
+        return module
+
     def _load_config(self, filename: str = "config_infer.yaml") -> dict:
-        """Load YAML config + scalers, resolve dtype to torch type."""
+        """Load YAML config, resolve ALL relative paths, load scalers, resolve dtype."""
         import torch
         import yaml
 
@@ -130,25 +180,40 @@ class BaseInferencePipeline(ABC):
         if not path.exists():
             path = self._task_path / "config.yaml"
 
-        config = yaml.safe_load(open(path))
+        with open(path, "r") as f:
+            config = yaml.safe_load(f)
 
+        # ---- pretrained_path can live at top level OR under "model" ----
         pretrained = (
             config.get("pretrained_path")
             or config.get("model", {}).get("pretrained_path")
         )
-        
-        pretrained = str((self._task_path / pretrained).resolve())
-        
-        config["pretrained_path"] = pretrained
-        
-        if "model" in config:
-            config["model"]["pretrained_path"] = pretrained
+        if pretrained:
+            pretrained = str((self._task_path / pretrained).resolve())
+            config["pretrained_path"] = pretrained
+            if "model" in config:
+                config["model"]["pretrained_path"] = pretrained
 
-        scalers_path = config.get("data", {}).get("scalers_path", "")
-        sp = self._task_path / scalers_path
-        if sp.exists():
-            config["data"]["scalers"] = yaml.safe_load(open(sp))
+        # ---- Resolve EVERY relative path under data: ----
+        # Deliberately NOT gated on a "./" prefix — configs are inconsistent
+        # about this (e.g. "./assets/x" vs "assets/x" vs "../../data/x").
+        data = config.get("data", {})
+        for key, value in list(data.items()):
+            if isinstance(value, str) and value and not Path(value).is_absolute():
+                data[key] = str((self._task_path / value).resolve())
 
+        # ---- Load scalers into memory ----
+        scalers_path = data.get("scalers_path")
+        if scalers_path:
+            sp = Path(scalers_path)
+            if sp.exists():
+                with open(sp, "r") as f:
+                    config["data"]["scalers"] = yaml.safe_load(f)
+                config["data"]["scalers_path"] = str(sp)
+            else:
+                log.warning("[%s] scalers file not found: %s", self.result_type, sp)
+
+        # ---- dtype string -> torch dtype ----
         dtype_map = {
             "float16":  torch.float16,
             "bfloat16": torch.bfloat16,
@@ -165,37 +230,65 @@ class BaseInferencePipeline(ABC):
         import torch
         from torch.utils.data import DataLoader, Subset
         from surya.utils.data import build_scalers
-        from surya.datasets.helio import HelioNetCDFDataset
 
         scalers = build_scalers(info=self._config["data"]["scalers"])
         self._scalers = scalers
 
-        index_key = "valid_data_path" if data_type == "valid" else "valid_data_path"
-        index_path = self._config["data"].get(
-            f"{data_type}_data_path",
-            self._config["data"].get("valid_data_path"),
-        )
+        # ---- resolve index path ----
+        if self.index_path_key:
+            index_path = self._config["data"].get(self.index_path_key)
+        else:
+            index_path = self._config["data"].get(
+                f"{data_type}_data_path",
+                self._config["data"].get("valid_data_path"),
+            )
+        if not index_path:
+            raise ValueError(
+                f"[{self.result_type}] could not resolve an index path from "
+                f"config['data'] — set `index_path_key` on this pipeline class"
+            )
 
-        dataset = HelioNetCDFDataset(
+        # ---- resolve dataset class via isolated per-task module import ----
+        self._import_task_module()
+        if self.dataset_class_name:
+            DatasetClass = getattr(sys.modules["dataset"], self.dataset_class_name)
+        else:
+            from surya.datasets.helio import HelioNetCDFDataset
+            DatasetClass = HelioNetCDFDataset
+
+        extra_kwargs = {
+            kwarg_name: self._config["data"][config_key]
+            for kwarg_name, config_key in (self.extra_dataset_kwargs or {}).items()
+        }
+
+        dataset = DatasetClass(
             sdo_data_root_path=self._config["data"]["sdo_data_root_path"],
             index_path=index_path,
             time_delta_input_minutes=self._config["data"]["time_delta_input_minutes"],
             time_delta_target_minutes=self._config["data"]["time_delta_target_minutes"],
             n_input_timestamps=len(self._config["data"]["time_delta_input_minutes"]),
-            rollout_steps=1,
+            rollout_steps=self.rollout_steps,
             channels=self._config["data"]["channels"],
             scalers=scalers,
             phase=data_type,
+            **extra_kwargs,
         )
 
-        # Clamp index to dataset length
-        idx = min(sample_idx, len(dataset) - 1)
+        # ---- clamp against the REAL valid-sample count, not len(dataset) ----
+        # len(dataset) was observed to disagree with len(dataset.valid_indices)
+        # in at least one case — clamping against len(dataset) let an
+        # out-of-range index slip through and crash deeper in __getitem__.
+        valid_indices = getattr(dataset, "valid_indices", None)
+        valid_len = len(valid_indices) if valid_indices is not None else len(dataset)
+        if valid_len == 0:
+            raise ValueError(
+                f"[{self.result_type}] dataset has 0 valid samples — check "
+                f"rollout_steps ({self.rollout_steps}) and index density "
+                f"against time_delta_input_minutes/time_delta_target_minutes"
+            )
+        idx = max(0, min(sample_idx, valid_len - 1))
 
-        try:
-            from finetune import custom_collate_fn
-            collate = custom_collate_fn
-        except ImportError:
-            collate = None
+        collate = getattr(sys.modules.get("finetune"), "custom_collate_fn", None)
 
         loader = DataLoader(
             dataset=Subset(dataset, [idx]),
@@ -211,7 +304,6 @@ class BaseInferencePipeline(ABC):
                             time_var: str = "time") -> list[datetime]:
         """Extract sorted datetime list from a NetCDF index file."""
         import netCDF4 as nc
-        import numpy as np
 
         ds        = nc.Dataset(nc_path)
         raw_times = nc.num2date(ds[time_var][:], ds[time_var].units)

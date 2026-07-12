@@ -26,11 +26,13 @@ import time
 import traceback
 import uuid
 from datetime import datetime, timezone
-
+from dotenv import load_dotenv
 import pika
 
 from solar_clock import clock
 
+
+load_dotenv()
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [surya_service] %(levelname)s %(message)s",
