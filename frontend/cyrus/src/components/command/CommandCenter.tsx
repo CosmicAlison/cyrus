@@ -151,7 +151,7 @@ const newLogs: LogEvent[] = newEvents.map((event, i) => {
         left: "15px",
         top: "30px",
         width: "380px",
-        maxHeight: "700px",
+        maxHeight: "500px",
         padding: "20px",
         borderRadius: "24px",
         background: "rgba(10, 15, 30, 0.55)",
@@ -193,7 +193,7 @@ const newLogs: LogEvent[] = newEvents.map((event, i) => {
             border: "1px solid rgba(255,120,30,0.25)",
             fontSize: "12px",
             lineHeight: 1.6,
-            maxHeight: "220px",
+            maxHeight: "180px",
             overflowY: "auto",
           }}
         >

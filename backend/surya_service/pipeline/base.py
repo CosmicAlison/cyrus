@@ -132,6 +132,18 @@ class BaseInferencePipeline(ABC):
 
         config = yaml.safe_load(open(path))
 
+        pretrained = (
+            config.get("pretrained_path")
+            or config.get("model", {}).get("pretrained_path")
+        )
+        
+        pretrained = str((self._task_path / pretrained).resolve())
+        
+        config["pretrained_path"] = pretrained
+        
+        if "model" in config:
+            config["model"]["pretrained_path"] = pretrained
+
         scalers_path = config.get("data", {}).get("scalers_path", "")
         sp = self._task_path / scalers_path
         if sp.exists():
