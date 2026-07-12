@@ -4,6 +4,7 @@ from flask import Flask
 
 from core.config import settings
 from core.database import init_db
+from flask_cors import CORS
 
 logging.basicConfig(
     level=logging.INFO,
@@ -14,6 +15,11 @@ logging.basicConfig(
 def create_app() -> Flask:
     app = Flask(__name__)
     app.config["JSON_SORT_KEYS"] = False
+
+    CORS(
+        app,
+        origins=[settings.FRONTEND_URL]
+    )
 
     with app.app_context():
         init_db()

@@ -48,6 +48,7 @@ services:
       LLM_TEMPERATURE: ${LLM_TEMPERATURE}
       FLASK_ENV: ${FLASK_ENV:-production}
       FIREWORKS_URL: ${FIREWORKS_URL}
+      FRONTEND_URL: ${FRONTEND_URL}
     depends_on:
       postgres:
         condition: service_healthy

@@ -77,5 +77,6 @@ def stream():
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",   # Disable nginx buffering
             "Connection": "keep-alive",
+            "Access-Control-Allow-Origin": settings.FRONTEND_URL,
         },
     )

@@ -40,6 +40,7 @@ class Settings:
     THRESHOLD_COMMSOPS: float = float(os.environ.get("THRESHOLD_COMMSOPS", "0.25"))
     THRESHOLD_SATOPS: float = float(os.environ.get("THRESHOLD_SATOPS", "0.45"))
     THRESHOLD_GRIDOPS: float = float(os.environ.get("THRESHOLD_GRIDOPS", "0.65"))
+    FRONTEND_URL: str = str(os.environ.get("FRONTEND_URL"))
 
     # Worker retry settings
     RABBITMQ_CONNECT_RETRIES: int = int(os.environ.get("RABBITMQ_CONNECT_RETRIES", "10"))
