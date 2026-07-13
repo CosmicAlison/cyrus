@@ -1,4 +1,4 @@
-# Cyrus — Autonomous Space Weather Defense System
+# Cyrus: Autonomous Space Weather Defense System
 
 Cyrus turns NASA/IBM's **Surya** solar foundation model into a live, tick-based
 threat-detection service, and pipes its predictions through a 5-agent
@@ -40,7 +40,7 @@ This project runs Surya inference natively on **AMD** GPUs.
 
 ### GPU Inference Evidence
 
-ROCm/GPU usage screenshots (model loading, live tick inference, rocm-smi
+ROCm/GPU usage screenshots (model loading, live tick inference with connection to rabbitmq, rocm-smi
 output) are available here: [docs/screenshots](https://github.com/CosmicAlison/cyrus/tree/main/docs/screenshots)
 
 | Component | Detail |
@@ -48,8 +48,6 @@ output) are available here: [docs/screenshots](https://github.com/CosmicAlison/c
 | Hardware | AMD ROCm-managed GPUs |
 | ROCm version | 7.2 |
 | PyTorch | 2.9 (ROCm build) |
-| Inference backend | vLLM 0.16 (environment-provided; core Surya inference uses native PyTorch/HIP) |
-| Framework notes | `aiter` fused-RoPE kernels used for attention (`USE_ROCM_AITER_ROPE_BACKEND`); NUMA balancing considerations documented in `surya_service/README.md` |
 | What runs on GPU | Surya 366M backbone + PEFT/LoRA adapters for flare forecasting, EUV spectra forecasting, solar wind forecasting and AR segmentation, loaded and run per inference tick |
 
 ---
