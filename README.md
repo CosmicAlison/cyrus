@@ -15,7 +15,7 @@ tasks, runs inference on a fixed tick interval against real SDO/AIA + HMI
 `.nc` solar observation data, aggregates the results with a rule-based threat
 scoring model, and publishes each tick to RabbitMQ.
 
-**`cyrus` (helio_worker)** — a LangGraph-orchestrated multi-agent system
+**`cyrus`** — a LangGraph-orchestrated multi-agent system
 that consumes Surya's forecasts and, when a threat crosses a significance
 threshold, runs:
 
@@ -58,9 +58,9 @@ output) are available here: [docs/screenshots](https://github.com/CosmicAlison/c
 |---|---|---|
 | **Fireworks AI** (`accounts/fireworks/models/minimax-m3`) | Powers all 5 LangGraph agents via LangChain's OpenAI-compatible client, pointed at Fireworks' inference endpoint | `backend/cyrus/agents/base_agent.py`, API key via `.env` |
 | **RabbitMQ** (CloudAMQP, hosted) | Message queue between `surya_service` (producer, per-tick) and `helio_worker` (consumer) | `backend/surya_service/runner.py`, connection URL via `.env` |
-| **Redis** | Pub/sub channel for dashboard live events (SSE bridge) and run-status tracking | `helio_worker`, `api/stream` endpoint |
-| **Hugging Face Hub** | Source of Surya's pretrained weights and the SuryaBench downstream task datasets, pulled via each task's `download_data.sh` | `Surya/downstream_examples/*/download_data.sh` |
-| **Vercel** | Frontend hosting | `frontend/` |
+| **Redis** | Pub/sub channel for dashboard live events (SSE bridge) and run-status tracking | `helio_worker`, `backend/cyrus/api/stream` endpoint |
+| **Hugging Face Hub** | Source of Surya's pretrained weights and the SuryaBench downstream task datasets, pulled via each task's `download_data.sh` | `backend/surya_service/Surya/downstream_examples/*/download_data.sh` |
+| **Vercel** | Frontend hosting | `frontend/cyrus` |
 
 No other third-party APIs, model providers, or paid services are used.
 
@@ -71,7 +71,7 @@ No other third-party APIs, model providers, or paid services are used.
 ```
 ┌─────────────────┐     tick (600s)     ┌──────────────────┐
 │  surya_service   │ ──────────────────► │     RabbitMQ      │
-│  (AMD MI300X)    │  raw forecast msg   │  cyrus.raw_forecast│
+│  (AMD)    │  raw forecast msg   │  cyrus.raw_forecast│
 │                   │                     │  cyrus.telemetry   │
 │  Surya 366M +     │                     └──────────┬─────────┘
 │  LoRA heads:      │                                │
