@@ -38,6 +38,8 @@ stream, live active-region markers, and a real-time agent activity log.
 
 This project runs Surya inference natively on **AMD** GPUs.
 
+![GPU inference on time tick from Surya model streaming to RabbitMQ](docs/screenshots/_surya_inference_with_rabbitmq_publishing_results.png)
+
 ### GPU Inference Evidence
 
 ROCm/GPU usage screenshots (model loading, live tick inference with connection to rabbitmq, rocm-smi
