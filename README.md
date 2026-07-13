@@ -36,11 +36,16 @@ stream, live active-region markers, and a real-time agent activity log.
 
 ## AMD Resource Usage
 
-This project runs Surya inference natively on **AMD Instinct MI300X** GPUs.
+This project runs Surya inference natively on **AMD** GPUs.
+
+### GPU Inference Evidence
+
+ROCm/GPU usage screenshots (model loading, live tick inference, rocm-smi
+output) are available here: [docs/screenshots](https://github.com/CosmicAlison/cyrus/tree/main/docs/screenshots)
 
 | Component | Detail |
 |---|---|
-| Hardware | AMD Instinct MI300X (ROCm-managed GPU) |
+| Hardware | AMD ROCm-managed GPUs |
 | ROCm version | 7.2 |
 | PyTorch | 2.9 (ROCm build) |
 | Inference backend | vLLM 0.16 (environment-provided; core Surya inference uses native PyTorch/HIP) |
@@ -129,7 +134,19 @@ cd backend/surya_service
 git clone --depth 1 https://github.com/NASA-IMPACT/Surya.git /surya
 
 #Not if running this service in a notebook environment where docker is not installed and
-#Pytorch and Cuda are preconfigured you will need to tweek some of the config variables
+#Pytorch and Cuda are preconfigured you will need to remove some of the variables in the 
+#pyproject.toml as these will break our environemnt:
+Remove these:
+'# Use CUDA 12.6 PyTorch wheels on non-macOS platforms.
+[[tool.uv.index]]
+name = "pytorch-cu126"
+url = "https://download.pytorch.org/whl/cu126"
+explicit = true'
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu126", marker = "sys_platform != 'darwin'" }
+torchvision = { index = "pytorch-cu126", marker = "sys_platform != 'darwin'" }
+torchaudio = { index = "pytorch-cu126", marker = "sys_platform != 'darwin'" }
 
 cd Surya/
 pip install -e . --no-deps --ignore-requires-python
